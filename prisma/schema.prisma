@@ -1,0 +1,145 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  user
+  admin
+}
+
+enum UserStatus {
+  pending
+  approved
+}
+
+// ---------------------------------------------------------------------------
+// Domain + Auth.js models
+// ---------------------------------------------------------------------------
+
+// Pracownik i użytkownik logujący się to ta sama encja (jedna tabela).
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String?
+  firstName    String
+  lastName     String
+  position     String?
+  role         Role       @default(user)
+  status       UserStatus @default(pending)
+
+  // Pola wymagane/używane przez adapter Auth.js (opcjonalne przy credentials).
+  name          String?
+  emailVerified DateTime?
+  image         String?
+
+  accounts    Account[]
+  sessions    Session[]
+  assignments Assignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  dueDate     DateTime?
+  endDate     DateTime?
+
+  attachments Attachment[]
+  assignments Assignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Attachment {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fileUrl   String
+  fileName  String
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model Assignment {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  month String  @db.VarChar(7) // "YYYY-MM"
+  fte   Decimal @db.Decimal(4, 2)
+
+  // Wyliczane: suma FTE użytkownika w danym month > 1.0. Zapis dozwolony mimo konfliktu.
+  isConflict Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, projectId, month])
+  @@index([userId, month])
+  @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js adapter models (OAuth-ready; credentials używa strategii JWT)
+// ---------------------------------------------------------------------------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
