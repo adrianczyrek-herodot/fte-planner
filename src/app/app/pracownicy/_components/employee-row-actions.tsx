@@ -26,7 +26,13 @@ type Employee = {
   status: "approved" | "inactive" | "pending";
 };
 
-export function EmployeeRowActions({ employee }: { employee: Employee }) {
+export function EmployeeRowActions({
+  employee,
+  isCurrentUser,
+}: {
+  employee: Employee;
+  isCurrentUser: boolean;
+}) {
   return (
     <div className="flex items-center gap-1">
       <EmployeeFormDialog
@@ -52,6 +58,16 @@ export function EmployeeRowActions({ employee }: { employee: Employee }) {
             <UserCheck />
           </Button>
         </form>
+      ) : isCurrentUser ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Nie można dezaktywować własnego konta"
+          title="Nie możesz dezaktywować własnego konta"
+          disabled
+        >
+          <UserX />
+        </Button>
       ) : (
         <AlertDialog>
           <AlertDialogTrigger asChild>

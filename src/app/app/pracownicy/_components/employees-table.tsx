@@ -18,7 +18,13 @@ type Employee = {
   status: "approved" | "inactive" | "pending";
 };
 
-export function EmployeesTable({ employees }: { employees: Employee[] }) {
+export function EmployeesTable({
+  employees,
+  currentUserId,
+}: {
+  employees: Employee[];
+  currentUserId: string;
+}) {
   if (employees.length === 0) {
     return (
       <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -53,7 +59,10 @@ export function EmployeesTable({ employees }: { employees: Employee[] }) {
                 </Badge>
               </TableCell>
               <TableCell>
-                <EmployeeRowActions employee={employee} />
+                <EmployeeRowActions
+                  employee={employee}
+                  isCurrentUser={employee.id === currentUserId}
+                />
               </TableCell>
             </TableRow>
           ))}

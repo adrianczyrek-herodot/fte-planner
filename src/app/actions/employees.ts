@@ -81,13 +81,24 @@ export async function updateEmployee(
 }
 
 export async function setEmployeeStatus(formData: FormData) {
-  await requireApprovedUser();
+  const session = await requireApprovedUser();
 
   const id = formData.get("id");
   const status = formData.get("status");
 
   if (typeof id !== "string" || (status !== "approved" && status !== "inactive")) {
     throw new Error("Nieprawidłowe dane.");
+  }
+
+  if (status === "inactive") {
+    if (id === session.user.id) {
+      throw new Error("Nie możesz dezaktywować własnego konta.");
+    }
+
+    const approvedCount = await prisma.user.count({ where: { status: "approved" } });
+    if (approvedCount <= 1) {
+      throw new Error("Nie można dezaktywować ostatniego aktywnego pracownika.");
+    }
   }
 
   await prisma.user.update({ where: { id }, data: { status } });

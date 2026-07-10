@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
+import { requireApprovedUser } from "@/app/actions/auth";
 import { SearchInput } from "./_components/search-input";
 import { EmployeesTable } from "./_components/employees-table";
 import { EmployeeFormDialog } from "./_components/employee-form-dialog";
@@ -16,6 +17,11 @@ export default async function EmployeesPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  // Layouts don't reliably re-render on client-side navigation (Next.js
+  // partial rendering), so re-check auth here too rather than relying
+  // solely on the shared /app layout.
+  const session = await requireApprovedUser();
+
   const { q } = await searchParams;
   const query = q?.trim() ?? "";
 
@@ -58,7 +64,7 @@ export default async function EmployeesPage({
         <SearchInput initialQuery={query} />
       </Suspense>
 
-      <EmployeesTable employees={employees} />
+      <EmployeesTable employees={employees} currentUserId={session.user.id} />
     </div>
   );
 }
