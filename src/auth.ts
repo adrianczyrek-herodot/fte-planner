@@ -13,6 +13,10 @@ export class PendingApprovalError extends CredentialsSignin {
   code = "pending-approval";
 }
 
+export class AccountInactiveError extends CredentialsSignin {
+  code = "account-inactive";
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: {
@@ -42,6 +46,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!passwordValid) {
           throw new InvalidCredentialsError();
+        }
+
+        if (user.status === UserStatus.inactive) {
+          throw new AccountInactiveError();
         }
 
         if (user.status !== UserStatus.approved) {

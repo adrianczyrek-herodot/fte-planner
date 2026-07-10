@@ -24,6 +24,7 @@ enum Role {
 enum UserStatus {
   pending
   approved
+  inactive
 }
 
 // ---------------------------------------------------------------------------

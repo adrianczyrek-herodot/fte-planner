@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/app", label: "Panel", icon: LayoutDashboard, enabled: true },
-  { href: "/app/pracownicy", label: "Pracownicy", icon: Users, enabled: false },
+  { href: "/app/pracownicy", label: "Pracownicy", icon: Users, enabled: true },
   { href: "/app/projekty", label: "Projekty", icon: FolderKanban, enabled: false },
   { href: "/app/timeline", label: "Timeline", icon: CalendarRange, enabled: false },
 ];

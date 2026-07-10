@@ -3,8 +3,9 @@
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
+import * as z from "zod";
 
-import { auth, signIn, signOut, PendingApprovalError } from "@/auth";
+import { auth, signIn, signOut, PendingApprovalError, AccountInactiveError } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
   LoginFormSchema,
@@ -25,7 +26,7 @@ export async function signup(
   });
 
   if (!validatedFields.success) {
-    return { errors: validatedFields.error.flatten().fieldErrors };
+    return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
   const { firstName, lastName, email, password } = validatedFields.data;
@@ -61,7 +62,7 @@ export async function login(
   });
 
   if (!validatedFields.success) {
-    return { errors: validatedFields.error.flatten().fieldErrors };
+    return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
   const { email, password } = validatedFields.data;
@@ -72,6 +73,11 @@ export async function login(
     if (error instanceof PendingApprovalError) {
       return {
         message: "Twoje konto czeka na zatwierdzenie przez administratora.",
+      };
+    }
+    if (error instanceof AccountInactiveError) {
+      return {
+        message: "Twoje konto zostało dezaktywowane. Skontaktuj się z administratorem.",
       };
     }
     if (error instanceof AuthError) {
@@ -90,8 +96,20 @@ export async function logout() {
 
 export async function requireApprovedUser() {
   const session = await auth();
-  if (!session?.user || session.user.status !== "approved") {
+  if (!session?.user?.id) {
     redirect("/login");
   }
+
+  // JWT sessions carry the status from sign-in time; re-check the DB so a
+  // deactivation takes effect immediately instead of waiting for re-login.
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { status: true },
+  });
+
+  if (!dbUser || dbUser.status !== "approved") {
+    redirect(dbUser?.status === "inactive" ? "/pending" : "/login");
+  }
+
   return session;
 }

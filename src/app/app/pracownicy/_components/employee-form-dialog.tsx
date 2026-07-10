@@ -1,0 +1,144 @@
+"use client";
+
+import { useActionState, useState } from "react";
+
+import { createEmployee, updateEmployee } from "@/app/actions/employees";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+type Employee = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  position: string | null;
+};
+
+type Props =
+  | { mode: "create"; trigger: React.ReactNode; employee?: undefined }
+  | { mode: "edit"; trigger: React.ReactNode; employee: Employee };
+
+export function EmployeeFormDialog({ mode, trigger, employee }: Props) {
+  const [open, setOpen] = useState(false);
+  const action = mode === "create" ? createEmployee : updateEmployee;
+  const [state, formAction, pending] = useActionState(action, undefined);
+
+  // Close the dialog exactly once when a new successful submission comes in.
+  // Calling setState during render (guarded by comparing to the previous
+  // state instance) is React's documented way to adjust state in response to
+  // a value changing, without the cascading-render risk of doing it in an effect.
+  const [lastHandledState, setLastHandledState] = useState(state);
+  if (state !== lastHandledState) {
+    setLastHandledState(state);
+    if (state?.success && open) {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === "create" ? "Dodaj pracownika" : "Edytuj pracownika"}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === "create"
+              ? "Utwórz profil nowego pracownika w systemie."
+              : "Zaktualizuj dane profilowe pracownika."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Remount on open/close so uncontrolled inputs clear between submissions. */}
+        <form key={String(open)} action={formAction} className="flex flex-col gap-4">
+          {mode === "edit" && <input type="hidden" name="id" value={employee.id} />}
+
+          {mode === "create" && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="jan.kowalski@firma.pl"
+                required
+              />
+              {state?.errors?.email && (
+                <p className="text-sm text-destructive">{state.errors.email[0]}</p>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="firstName">Imię</Label>
+              <Input
+                id="firstName"
+                name="firstName"
+                defaultValue={employee?.firstName}
+                required
+              />
+              {state?.errors?.firstName && (
+                <p className="text-sm text-destructive">{state.errors.firstName[0]}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="lastName">Nazwisko</Label>
+              <Input
+                id="lastName"
+                name="lastName"
+                defaultValue={employee?.lastName}
+                required
+              />
+              {state?.errors?.lastName && (
+                <p className="text-sm text-destructive">{state.errors.lastName[0]}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="position">Stanowisko</Label>
+            <Input
+              id="position"
+              name="position"
+              placeholder="np. Frontend Developer"
+              defaultValue={employee?.position ?? ""}
+              required
+            />
+            {state?.errors?.position && (
+              <p className="text-sm text-destructive">{state.errors.position[0]}</p>
+            )}
+          </div>
+
+          {state?.message && (
+            <Alert variant="destructive">
+              <AlertDescription>{state.message}</AlertDescription>
+            </Alert>
+          )}
+
+          <DialogFooter>
+            <Button type="submit" disabled={pending}>
+              {pending
+                ? "Zapisywanie…"
+                : mode === "create"
+                  ? "Dodaj pracownika"
+                  : "Zapisz zmiany"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
