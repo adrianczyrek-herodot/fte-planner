@@ -1,0 +1,51 @@
+"use client";
+
+import { useActionState } from "react";
+import Link from "next/link";
+
+import { login } from "@/app/actions/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+export function LoginForm() {
+  const [state, action, pending] = useActionState(login, undefined);
+
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="email">E-mail</Label>
+        <Input id="email" name="email" type="email" placeholder="jan.kowalski@firma.pl" required />
+        {state?.errors?.email && (
+          <p className="text-sm text-destructive">{state.errors.email[0]}</p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="password">Hasło</Label>
+        <Input id="password" name="password" type="password" required />
+        {state?.errors?.password && (
+          <p className="text-sm text-destructive">{state.errors.password[0]}</p>
+        )}
+      </div>
+
+      {state?.message && (
+        <Alert variant="destructive">
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" disabled={pending} className="mt-2">
+        {pending ? "Logowanie…" : "Zaloguj się"}
+      </Button>
+
+      <p className="text-center text-sm text-muted-foreground">
+        Nie masz konta?{" "}
+        <Link href="/register" className="text-primary underline underline-offset-4">
+          Zarejestruj się
+        </Link>
+      </p>
+    </form>
+  );
+}
