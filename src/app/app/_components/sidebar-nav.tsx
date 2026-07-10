@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/app", label: "Panel", icon: LayoutDashboard, enabled: true },
   { href: "/app/pracownicy", label: "Pracownicy", icon: Users, enabled: true },
-  { href: "/app/projekty", label: "Projekty", icon: FolderKanban, enabled: false },
+  { href: "/app/projekty", label: "Projekty", icon: FolderKanban, enabled: true },
   { href: "/app/timeline", label: "Timeline", icon: CalendarRange, enabled: false },
 ];
 
@@ -19,7 +19,10 @@ export function SidebarNav() {
   return (
     <nav className="flex flex-col gap-1 p-3">
       {navItems.map((item) => {
-        const isActive = pathname === item.href;
+        const isActive =
+          item.href === "/app"
+            ? pathname === "/app"
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
 
         if (!item.enabled) {
