@@ -25,7 +25,10 @@ export default async function EmployeesPage({
   const { q } = await searchParams;
   const query = q?.trim() ?? "";
 
-  const [employees, approvedCount] = await Promise.all([
+  // Bieżący miesiąc w formacie "YYYY-MM" — do kolumny "Obciążenie".
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  const [employees, approvedCount, loads] = await Promise.all([
     prisma.user.findMany({
       where: {
         status: { in: ["pending", "approved", "inactive"] },
@@ -53,7 +56,21 @@ export default async function EmployeesPage({
     // Liczone niezależnie od filtra wyszukiwania — służy do zablokowania
     // dezaktywacji ostatniego aktywnego pracownika już w UI.
     prisma.user.count({ where: { status: "approved" } }),
+    // Suma FTE per pracownik w bieżącym miesiącu (jedno zapytanie zamiast N).
+    prisma.assignment.groupBy({
+      by: ["userId"],
+      where: { month: currentMonth },
+      _sum: { fte: true },
+    }),
   ]);
+
+  const loadByUser = new Map(
+    loads.map((l) => [l.userId, Number(l._sum.fte ?? 0)])
+  );
+  const employeesWithLoad = employees.map((e) => ({
+    ...e,
+    monthlyFte: loadByUser.get(e.id) ?? 0,
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -72,7 +89,7 @@ export default async function EmployeesPage({
       </Suspense>
 
       <EmployeesTable
-        employees={employees}
+        employees={employeesWithLoad}
         currentUserId={session.user.id}
         approvedCount={approvedCount}
       />

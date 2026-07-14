@@ -32,7 +32,7 @@ export default async function ProjectsPage({
         ? { endDate: { lt: now } }
         : {};
 
-  const projects = await prisma.project.findMany({
+  const projectsRaw = await prisma.project.findMany({
     where,
     orderBy: { createdAt: "desc" },
     select: {
@@ -41,8 +41,23 @@ export default async function ProjectsPage({
       description: true,
       startDate: true,
       endDate: true,
+      _count: { select: { attachments: true } },
+      // isConflict jest już utrzymywany przez istniejącą logikę FTE — czytamy
+      // flagę zamiast liczyć konflikt drugi raz. userId do policzenia osób.
+      assignments: { select: { userId: true, isConflict: true } },
     },
   });
+
+  const projects = projectsRaw.map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    startDate: p.startDate,
+    endDate: p.endDate,
+    attachmentCount: p._count.attachments,
+    assigneeCount: new Set(p.assignments.map((a) => a.userId)).size,
+    hasConflict: p.assignments.some((a) => a.isConflict),
+  }));
 
   return (
     <div className="flex flex-col gap-4">

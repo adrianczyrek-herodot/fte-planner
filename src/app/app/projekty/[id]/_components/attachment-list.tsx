@@ -1,4 +1,7 @@
-import { FileText } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
+
+import { deleteAttachment } from "@/app/actions/projects";
+import { Button } from "@/components/ui/button";
 
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"];
 
@@ -52,6 +55,17 @@ export function AttachmentList({ attachments }: { attachments: Attachment[] }) {
                 {attachment.fileName}
               </span>
             </a>
+            <form action={deleteAttachment} className="mt-1 flex justify-center">
+              <input type="hidden" name="id" value={attachment.id} />
+              <Button
+                type="submit"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Usuń załącznik ${attachment.fileName}`}
+              >
+                <Trash2 className="text-destructive" />
+              </Button>
+            </form>
           </li>
         );
       })}

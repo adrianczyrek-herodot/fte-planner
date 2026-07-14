@@ -7,6 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { isOverAllocated } from "@/lib/fte";
 import { EmployeeRowActions } from "./employee-row-actions";
 
 type Employee = {
@@ -16,7 +17,13 @@ type Employee = {
   lastName: string;
   position: string | null;
   status: "approved" | "inactive" | "pending";
+  monthlyFte: number;
 };
+
+// Kompaktowy zapis FTE: 0.8, 1.4, 1 (bez zbędnych zer).
+function formatFte(value: number) {
+  return String(Number(value.toFixed(2)));
+}
 
 const statusMeta = {
   approved: { label: "Aktywny", variant: "secondary" },
@@ -50,6 +57,7 @@ export function EmployeesTable({
             <TableHead>Stanowisko</TableHead>
             <TableHead>E-mail</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Obciążenie</TableHead>
             <TableHead className="w-0">Akcje</TableHead>
           </TableRow>
         </TableHeader>
@@ -64,6 +72,15 @@ export function EmployeesTable({
               <TableCell>
                 <Badge variant={statusMeta[employee.status].variant}>
                   {statusMeta[employee.status].label}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge
+                  variant={
+                    isOverAllocated(employee.monthlyFte) ? "destructive" : "secondary"
+                  }
+                >
+                  {formatFte(employee.monthlyFte)}
                 </Badge>
               </TableCell>
               <TableCell>

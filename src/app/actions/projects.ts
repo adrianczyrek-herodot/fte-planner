@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { put } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
@@ -120,4 +120,50 @@ export async function uploadAttachment(
 
   revalidatePath(`${PROJECTS_PATH}/${projectId}`);
   return { message: undefined };
+}
+
+export async function deleteAttachment(formData: FormData) {
+  await requireApprovedUser();
+
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) {
+    return;
+  }
+
+  const attachment = await prisma.attachment.findUnique({
+    where: { id },
+    select: { projectId: true, fileUrl: true },
+  });
+  if (!attachment) {
+    return;
+  }
+
+  await prisma.attachment.delete({ where: { id } });
+  // Sprzątanie pliku z Blob store — best-effort (nie blokuj, gdy brak tokenu).
+  await del(attachment.fileUrl).catch(() => {});
+
+  revalidatePath(`${PROJECTS_PATH}/${attachment.projectId}`);
+}
+
+export async function deleteProject(formData: FormData) {
+  await requireApprovedUser();
+
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) {
+    return;
+  }
+
+  // Pobierz ścieżki plików przed kasacją, by posprzątać je z Blob store.
+  const attachments = await prisma.attachment.findMany({
+    where: { projectId: id },
+    select: { fileUrl: true },
+  });
+
+  // Kasacja projektu usuwa kaskadowo attachments i assignments (onDelete: Cascade).
+  await prisma.project.delete({ where: { id } });
+
+  // Best-effort usunięcie osieroconych plików z Blob store.
+  await Promise.allSettled(attachments.map((a) => del(a.fileUrl)));
+
+  revalidatePath(PROJECTS_PATH);
 }
