@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/blob";
 
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -12,6 +13,16 @@ export async function GET(request: NextRequest) {
   const pathname = request.nextUrl.searchParams.get("pathname");
   if (!pathname) {
     return NextResponse.json({ error: "Missing pathname" }, { status: 400 });
+  }
+
+  // Serwujemy tylko blob-y zarejestrowane jako załącznik — inaczej można by
+  // pobrać dowolny plik ze store'u, znając ścieżkę (IDOR).
+  const attachment = await prisma.attachment.findFirst({
+    where: { fileUrl: pathname },
+    select: { id: true },
+  });
+  if (!attachment) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const result = await get(pathname, { access: "private" });

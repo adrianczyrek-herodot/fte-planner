@@ -5,7 +5,7 @@ import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { requireApprovedUser } from "@/app/actions/auth";
-import { isOverAllocated, sumFte } from "@/lib/fte";
+import { getMonthlyFte, recomputeConflicts } from "@/lib/assignments-core";
 import {
   AssignmentFormState,
   AssignmentSchema,
@@ -15,42 +15,10 @@ function projectPath(projectId: string) {
   return `/app/projekty/${projectId}`;
 }
 
-// Przelicza konflikt dla całej grupy (pracownik + miesiąc) i zapisuje ten sam
-// flag na wszystkich przydziałach grupy. Zwraca, czy grupa jest w konflikcie.
-async function recomputeConflicts(userId: string, month: string): Promise<boolean> {
-  const rows = await prisma.assignment.findMany({
-    where: { userId, month },
-    select: { fte: true },
-  });
-
-  const conflict = isOverAllocated(sumFte(rows.map((r) => Number(r.fte))));
-
-  await prisma.assignment.updateMany({
-    where: { userId, month },
-    data: { isConflict: conflict },
-  });
-
-  return conflict;
-}
-
 // Agregat sumy FTE pracownika w danym miesiącu ze WSZYSTKICH jego przydziałów.
 export async function getMonthlyFteSummary(userId: string, month: string) {
   await requireApprovedUser();
-
-  const rows = await prisma.assignment.findMany({
-    where: { userId, month },
-    select: { fte: true },
-  });
-
-  const totalFte = sumFte(rows.map((r) => Number(r.fte)));
-
-  return {
-    userId,
-    month,
-    totalFte,
-    isOverAllocated: isOverAllocated(totalFte),
-    count: rows.length,
-  };
+  return getMonthlyFte(prisma, userId, month);
 }
 
 // Tworzy lub aktualizuje przydział. Przy `assignmentId` edytujemy istniejący
@@ -107,14 +75,14 @@ export async function createOrUpdateAssignment(
 
     // Edycja może przenieść przydział między grupami (zmiana pracownika/
     // miesiąca), więc przeliczamy konflikt w starej i nowej grupie.
-    await recomputeConflicts(existing.userId, existing.month);
+    await recomputeConflicts(prisma, existing.userId, existing.month);
   } else {
     await prisma.assignment.create({
       data: { userId, projectId, month, fte },
     });
   }
 
-  const conflict = await recomputeConflicts(userId, month);
+  const conflict = await recomputeConflicts(prisma, userId, month);
 
   revalidatePath(projectPath(projectId));
   return { success: true, conflict };
@@ -133,7 +101,7 @@ export async function deleteAssignment(formData: FormData) {
     select: { userId: true, month: true, projectId: true },
   });
 
-  await recomputeConflicts(deleted.userId, deleted.month);
+  await recomputeConflicts(prisma, deleted.userId, deleted.month);
 
   revalidatePath(projectPath(deleted.projectId));
 }

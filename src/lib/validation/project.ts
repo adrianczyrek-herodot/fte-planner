@@ -9,12 +9,22 @@ const optionalDate = z.preprocess(
   z.coerce.date({ error: "Nieprawidłowa data." }).nullable()
 );
 
-export const ProjectSchema = z.object({
-  name: z.string().trim().min(1, { error: "Nazwa jest wymagana." }),
-  description: z.string().trim().optional(),
-  startDate: optionalDate,
-  endDate: optionalDate,
-});
+export const ProjectSchema = z
+  .object({
+    name: z.string().trim().min(1, { error: "Nazwa jest wymagana." }),
+    description: z.string().trim().optional(),
+    startDate: optionalDate,
+    endDate: optionalDate,
+  })
+  // Jeśli obie daty podane, zakończenie nie może być wcześniejsze niż rozpoczęcie.
+  .refine(
+    (data) =>
+      !data.startDate || !data.endDate || data.startDate <= data.endDate,
+    {
+      error: "Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.",
+      path: ["endDate"],
+    }
+  );
 
 export type ProjectFormState =
   | {
