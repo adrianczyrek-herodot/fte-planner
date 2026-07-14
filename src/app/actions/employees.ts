@@ -96,18 +96,22 @@ export async function setEmployeeStatus(formData: FormData) {
   const id = formData.get("id");
   const status = formData.get("status");
 
+  // Te warunki są niezmiennikami wymuszanymi też w UI (wyłączone przyciski).
+  // Tu pełnią rolę backstopu na bezpośrednie wywołanie akcji albo wyścig —
+  // zamiast rzucać wyjątkiem (crash overlay), po cichu nie robimy nic.
   if (typeof id !== "string" || (status !== "approved" && status !== "inactive")) {
-    throw new Error("Nieprawidłowe dane.");
+    return;
   }
 
   if (status === "inactive") {
+    // Nie pozwól dezaktywować własnego konta ani ostatniego aktywnego pracownika.
     if (id === session.user.id) {
-      throw new Error("Nie możesz dezaktywować własnego konta.");
+      return;
     }
 
     const approvedCount = await prisma.user.count({ where: { status: "approved" } });
     if (approvedCount <= 1) {
-      throw new Error("Nie można dezaktywować ostatniego aktywnego pracownika.");
+      return;
     }
   }
 
