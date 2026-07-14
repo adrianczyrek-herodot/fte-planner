@@ -16,6 +16,8 @@ import {
 import { ProjectFormDialog } from "../_components/project-form-dialog";
 import { AttachmentUploadForm } from "./_components/attachment-upload-form";
 import { AttachmentList } from "./_components/attachment-list";
+import { AssignmentForm } from "./_components/assignment-form";
+import { AssignmentsList } from "./_components/assignments-list";
 
 const statusLabels = {
   upcoming: "Przed terminem",
@@ -50,14 +52,44 @@ export default async function ProjectDetailPage({
 
   const project = await prisma.project.findUnique({
     where: { id },
-    include: { attachments: { orderBy: { createdAt: "desc" } } },
+    include: {
+      attachments: { orderBy: { createdAt: "desc" } },
+      assignments: {
+        orderBy: [{ month: "desc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          userId: true,
+          month: true,
+          fte: true,
+          isConflict: true,
+          user: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
   });
 
   if (!project) {
     notFound();
   }
 
-  const status = getProjectDueStatus(project.dueDate);
+  const status = getProjectDueStatus(project.endDate);
+
+  // Lista pracowników do przydzielenia + serializacja Decimal → string dla
+  // komponentów prezentacyjnych.
+  const employees = await prisma.user.findMany({
+    where: { status: "approved" },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    select: { id: true, firstName: true, lastName: true },
+  });
+
+  const assignments = project.assignments.map((a) => ({
+    id: a.id,
+    userId: a.userId,
+    month: a.month,
+    fte: a.fte.toString(),
+    isConflict: a.isConflict,
+    user: a.user,
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -70,7 +102,15 @@ export default async function ProjectDetailPage({
         </div>
         <ProjectFormDialog
           mode="edit"
-          project={project}
+          // Tylko proste pola — obiekt `project` niesie relacje (assignments)
+          // z wartościami Decimal, których nie można serializować do klienta.
+          project={{
+            id: project.id,
+            name: project.name,
+            description: project.description,
+            startDate: project.startDate,
+            endDate: project.endDate,
+          }}
           trigger={<Button variant="outline">Edytuj projekt</Button>}
         />
       </div>
@@ -79,7 +119,7 @@ export default async function ProjectDetailPage({
         <CardHeader>
           <CardTitle>Terminy</CardTitle>
           <CardDescription className="flex flex-col gap-1">
-            <span>Termin (due date): {formatDate(project.dueDate)}</span>
+            <span>Data rozpoczęcia: {formatDate(project.startDate)}</span>
             <span>Data zakończenia: {formatDate(project.endDate)}</span>
           </CardDescription>
         </CardHeader>
@@ -89,6 +129,16 @@ export default async function ProjectDetailPage({
           </Badge>
         </CardContent>
       </Card>
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">Przydziały</h2>
+        <AssignmentForm projectId={project.id} employees={employees} />
+        <AssignmentsList
+          assignments={assignments}
+          projectId={project.id}
+          employees={employees}
+        />
+      </div>
 
       <div className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Załączniki</h2>

@@ -7,18 +7,20 @@ import { LayoutDashboard, Users, FolderKanban, CalendarRange } from "lucide-reac
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/app", label: "Panel", icon: LayoutDashboard, enabled: true },
-  { href: "/app/pracownicy", label: "Pracownicy", icon: Users, enabled: true },
-  { href: "/app/projekty", label: "Projekty", icon: FolderKanban, enabled: true },
-  { href: "/app/timeline", label: "Timeline", icon: CalendarRange, enabled: false },
+  { href: "/app", label: "Panel", icon: LayoutDashboard, enabled: true, adminOnly: false },
+  { href: "/app/pracownicy", label: "Pracownicy", icon: Users, enabled: true, adminOnly: true },
+  { href: "/app/projekty", label: "Projekty", icon: FolderKanban, enabled: true, adminOnly: false },
+  { href: "/app/timeline", label: "Timeline", icon: CalendarRange, enabled: false, adminOnly: false },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-col gap-1 p-3">
-      {navItems.map((item) => {
+      {navItems
+        .filter((item) => !item.adminOnly || isAdmin)
+        .map((item) => {
         const isActive =
           item.href === "/app"
             ? pathname === "/app"

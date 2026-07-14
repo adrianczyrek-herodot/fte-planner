@@ -22,7 +22,7 @@ type Project = {
   id: string;
   name: string;
   description: string | null;
-  dueDate: Date | null;
+  startDate: Date | null;
   endDate: Date | null;
 };
 
@@ -98,13 +98,16 @@ export function ProjectFormDialog({ mode, trigger, project }: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="dueDate">Termin (due date)</Label>
+              <Label htmlFor="startDate">Data rozpoczęcia</Label>
               <Input
-                id="dueDate"
-                name="dueDate"
+                id="startDate"
+                name="startDate"
                 type="date"
-                defaultValue={toDateInputValue(project?.dueDate)}
+                defaultValue={toDateInputValue(project?.startDate)}
               />
+              {state?.errors?.startDate && (
+                <p className="text-sm text-destructive">{state.errors.startDate[0]}</p>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="endDate">Data zakończenia</Label>
@@ -114,6 +117,9 @@ export function ProjectFormDialog({ mode, trigger, project }: Props) {
                 type="date"
                 defaultValue={toDateInputValue(project?.endDate)}
               />
+              {state?.errors?.endDate && (
+                <p className="text-sm text-destructive">{state.errors.endDate[0]}</p>
+              )}
             </div>
           </div>
 

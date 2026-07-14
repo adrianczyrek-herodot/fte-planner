@@ -3,14 +3,32 @@
 import { useActionState } from "react";
 import Link from "next/link";
 
-import { login } from "@/app/actions/auth";
+import { requestPasswordReset } from "@/app/actions/password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export function LoginForm() {
-  const [state, action, pending] = useActionState(login, undefined);
+export function ResetPasswordForm() {
+  const [state, action, pending] = useActionState(requestPasswordReset, undefined);
+
+  if (state?.success) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Alert>
+          <AlertDescription>
+            Jeśli konto z tym adresem istnieje, wysłaliśmy link do ustawienia
+            nowego hasła. Sprawdź skrzynkę.
+          </AlertDescription>
+        </Alert>
+        <p className="text-center text-sm text-muted-foreground">
+          <Link href="/login" className="text-primary underline underline-offset-4">
+            Wróć do logowania
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={action} className="flex flex-col gap-4">
@@ -22,14 +40,6 @@ export function LoginForm() {
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="password">Hasło</Label>
-        <Input id="password" name="password" type="password" required />
-        {state?.errors?.password && (
-          <p className="text-sm text-destructive">{state.errors.password[0]}</p>
-        )}
-      </div>
-
       {state?.message && (
         <Alert variant="destructive">
           <AlertDescription>{state.message}</AlertDescription>
@@ -37,19 +47,12 @@ export function LoginForm() {
       )}
 
       <Button type="submit" disabled={pending} className="mt-2">
-        {pending ? "Logowanie…" : "Zaloguj się"}
+        {pending ? "Wysyłanie…" : "Wyślij link"}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
-        <Link href="/reset-password" className="text-primary underline underline-offset-4">
-          Nie pamiętasz hasła?
-        </Link>
-      </p>
-
-      <p className="text-center text-sm text-muted-foreground">
-        Nie masz konta?{" "}
-        <Link href="/register" className="text-primary underline underline-offset-4">
-          Zarejestruj się
+        <Link href="/login" className="text-primary underline underline-offset-4">
+          Wróć do logowania
         </Link>
       </p>
     </form>

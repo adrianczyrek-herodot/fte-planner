@@ -113,3 +113,20 @@ export async function requireApprovedUser() {
 
   return session;
 }
+
+export async function requireAdmin() {
+  const session = await requireApprovedUser();
+
+  // Re-check the role against the DB (not the JWT) so a role change takes
+  // effect immediately, mirroring the status re-check in requireApprovedUser.
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  });
+
+  if (dbUser?.role !== "admin") {
+    redirect("/app");
+  }
+
+  return session;
+}

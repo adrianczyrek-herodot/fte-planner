@@ -1,8 +1,10 @@
 export type ProjectDueStatus = "no-due-date" | "upcoming" | "overdue";
 
-export function getProjectDueStatus(dueDate: Date | null): ProjectDueStatus {
-  if (!dueDate) return "no-due-date";
-  return dueDate.getTime() >= Date.now() ? "upcoming" : "overdue";
+// Status liczony z daty zakończenia projektu: przyszła/dzisiejsza → "przed
+// terminem", przeszła → "po terminie".
+export function getProjectDueStatus(endDate: Date | null): ProjectDueStatus {
+  if (!endDate) return "no-due-date";
+  return endDate.getTime() >= Date.now() ? "upcoming" : "overdue";
 }
 
 export function formatDate(date: Date | null): string {

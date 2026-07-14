@@ -15,7 +15,7 @@ type Project = {
   id: string;
   name: string;
   description: string | null;
-  dueDate: Date | null;
+  startDate: Date | null;
   endDate: Date | null;
 };
 
@@ -40,14 +40,14 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
         <TableHeader>
           <TableRow>
             <TableHead>Nazwa</TableHead>
-            <TableHead>Termin</TableHead>
+            <TableHead>Data rozpoczęcia</TableHead>
             <TableHead>Data zakończenia</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {projects.map((project) => {
-            const status = getProjectDueStatus(project.dueDate);
+            const status = getProjectDueStatus(project.endDate);
             return (
               <TableRow key={project.id}>
                 <TableCell className="font-medium">
@@ -58,7 +58,7 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
                     {project.name}
                   </Link>
                 </TableCell>
-                <TableCell>{formatDate(project.dueDate)}</TableCell>
+                <TableCell>{formatDate(project.startDate)}</TableCell>
                 <TableCell>{formatDate(project.endDate)}</TableCell>
                 <TableCell>
                   <Badge variant={status === "overdue" ? "destructive" : "secondary"}>

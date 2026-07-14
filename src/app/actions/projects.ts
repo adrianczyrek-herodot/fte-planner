@@ -11,11 +11,6 @@ import { ProjectSchema, ProjectFormState } from "@/lib/validation/project";
 
 const PROJECTS_PATH = "/app/projekty";
 
-function parseOptionalDate(value: FormDataEntryValue | null): Date | null {
-  if (typeof value !== "string" || value.trim() === "") return null;
-  return new Date(value);
-}
-
 export async function createProject(
   _state: ProjectFormState,
   formData: FormData
@@ -25,7 +20,7 @@ export async function createProject(
   const validatedFields = ProjectSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
-    dueDate: formData.get("dueDate"),
+    startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
   });
 
@@ -33,14 +28,14 @@ export async function createProject(
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { name, description } = validatedFields.data;
+  const { name, description, startDate, endDate } = validatedFields.data;
 
   const project = await prisma.project.create({
     data: {
       name,
       description: description || null,
-      dueDate: parseOptionalDate(formData.get("dueDate")),
-      endDate: parseOptionalDate(formData.get("endDate")),
+      startDate,
+      endDate,
     },
   });
 
@@ -62,7 +57,7 @@ export async function updateProject(
   const validatedFields = ProjectSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
-    dueDate: formData.get("dueDate"),
+    startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
   });
 
@@ -70,15 +65,15 @@ export async function updateProject(
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { name, description } = validatedFields.data;
+  const { name, description, startDate, endDate } = validatedFields.data;
 
   await prisma.project.update({
     where: { id },
     data: {
       name,
       description: description || null,
-      dueDate: parseOptionalDate(formData.get("dueDate")),
-      endDate: parseOptionalDate(formData.get("endDate")),
+      startDate,
+      endDate,
     },
   });
 

@@ -47,19 +47,34 @@ model User {
   emailVerified DateTime?
   image         String?
 
-  accounts    Account[]
-  sessions    Session[]
-  assignments Assignment[]
+  accounts            Account[]
+  sessions            Session[]
+  assignments         Assignment[]
+  passwordResetTokens PasswordResetToken[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Jednorazowe tokeny do ustawienia/resetu hasła (zaproszenie pracownika,
+// „nie pamiętam hasła"). Przechowujemy hash tokenu — surowy trafia tylko do
+// linku wysyłanego użytkownikowi.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Project {
   id          String    @id @default(cuid())
   name        String
   description String?
-  dueDate     DateTime?
+  startDate   DateTime?
   endDate     DateTime?
 
   attachments Attachment[]

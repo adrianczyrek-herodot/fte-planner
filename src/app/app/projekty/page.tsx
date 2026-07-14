@@ -27,9 +27,9 @@ export default async function ProjectsPage({
 
   const where =
     status === "upcoming"
-      ? { dueDate: { gte: now } }
+      ? { endDate: { gte: now } }
       : status === "overdue"
-        ? { dueDate: { lt: now } }
+        ? { endDate: { lt: now } }
         : {};
 
   const projects = await prisma.project.findMany({
@@ -39,7 +39,7 @@ export default async function ProjectsPage({
       id: true,
       name: true,
       description: true,
-      dueDate: true,
+      startDate: true,
       endDate: true,
     },
   });

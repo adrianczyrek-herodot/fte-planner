@@ -16,7 +16,7 @@ export default async function AppLayout({
         <div className="flex h-14 items-center border-b px-4 font-semibold">
           FTE Planner
         </div>
-        <SidebarNav />
+        <SidebarNav isAdmin={user.role === "admin"} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

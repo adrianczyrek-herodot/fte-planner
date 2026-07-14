@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
-import { requireApprovedUser } from "@/app/actions/auth";
+import { requireAdmin } from "@/app/actions/auth";
+import { createPasswordResetToken } from "@/lib/tokens";
+import { sendPasswordSetupEmail } from "@/lib/mail";
 import {
   EmployeeCreateSchema,
   EmployeeFormState,
@@ -17,7 +19,7 @@ export async function createEmployee(
   _state: EmployeeFormState,
   formData: FormData
 ): Promise<EmployeeFormState> {
-  await requireApprovedUser();
+  await requireAdmin();
 
   const validatedFields = EmployeeCreateSchema.safeParse({
     email: formData.get("email"),
@@ -37,16 +39,24 @@ export async function createEmployee(
     return { message: "Pracownik z tym adresem e-mail już istnieje." };
   }
 
-  await prisma.user.create({
+  const employee = await prisma.user.create({
     data: {
       email,
       firstName,
       lastName,
       position,
       role: "user",
+      // Bez hasła konto nie pozwala się zalogować; pracownik ustawi je przez
+      // link z zaproszenia. Status "approved" sprawia, że od razu widnieje na
+      // liście pracowników.
       status: "approved",
     },
   });
+
+  // Zaproszenie: token + „mail" z linkiem do ustawienia hasła (tryb dev loguje
+  // link do konsoli serwera).
+  const token = await createPasswordResetToken(employee.id, "invite");
+  await sendPasswordSetupEmail(employee.email, token, "invite");
 
   revalidatePath(EMPLOYEES_PATH);
   return { success: true };
@@ -56,7 +66,7 @@ export async function updateEmployee(
   _state: EmployeeFormState,
   formData: FormData
 ): Promise<EmployeeFormState> {
-  await requireApprovedUser();
+  await requireAdmin();
 
   const validatedFields = EmployeeUpdateSchema.safeParse({
     id: formData.get("id"),
@@ -81,7 +91,7 @@ export async function updateEmployee(
 }
 
 export async function setEmployeeStatus(formData: FormData) {
-  const session = await requireApprovedUser();
+  const session = await requireAdmin();
 
   const id = formData.get("id");
   const status = formData.get("status");
