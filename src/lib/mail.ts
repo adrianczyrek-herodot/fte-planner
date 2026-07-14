@@ -8,7 +8,6 @@ type MailMessage = {
 // To jedyny punkt do podmiany przy wdrożeniu prawdziwej poczty (Resend/SMTP) —
 // wystarczy zaimplementować transport wewnątrz sendMail, reszta kodu bez zmian.
 export async function sendMail({ to, subject, body }: MailMessage): Promise<void> {
-  // eslint-disable-next-line no-console
   console.log(
     [
       "",
