@@ -29,10 +29,20 @@ type Employee = {
 export function EmployeeRowActions({
   employee,
   isCurrentUser,
+  isLastActive,
 }: {
   employee: Employee;
   isCurrentUser: boolean;
+  isLastActive: boolean;
 }) {
+  // Powody, dla których nie wolno dezaktywować — te same, których broni akcja
+  // serwerowa. Blokujemy je w UI, żeby zamiast wyjątku (crash overlay) pokazać
+  // czytelny komunikat.
+  const blockReason = isCurrentUser
+    ? "Nie możesz dezaktywować własnego konta"
+    : isLastActive
+      ? "Nie można dezaktywować ostatniego aktywnego pracownika"
+      : null;
   return (
     <div className="flex items-center gap-1">
       <EmployeeFormDialog
@@ -45,7 +55,7 @@ export function EmployeeRowActions({
         }
       />
 
-      {employee.status === "inactive" ? (
+      {employee.status !== "approved" ? (
         <form action={setEmployeeStatus}>
           <input type="hidden" name="id" value={employee.id} />
           <input type="hidden" name="status" value="approved" />
@@ -53,17 +63,26 @@ export function EmployeeRowActions({
             type="submit"
             variant="ghost"
             size="icon-sm"
-            aria-label="Aktywuj pracownika"
+            aria-label={
+              employee.status === "pending"
+                ? "Zatwierdź pracownika"
+                : "Aktywuj pracownika"
+            }
+            title={
+              employee.status === "pending"
+                ? "Zatwierdź dostęp"
+                : "Aktywuj pracownika"
+            }
           >
             <UserCheck />
           </Button>
         </form>
-      ) : isCurrentUser ? (
+      ) : blockReason ? (
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Nie można dezaktywować własnego konta"
-          title="Nie możesz dezaktywować własnego konta"
+          aria-label={blockReason}
+          title={blockReason}
           disabled
         >
           <UserX />

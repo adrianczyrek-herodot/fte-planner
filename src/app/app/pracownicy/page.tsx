@@ -25,28 +25,35 @@ export default async function EmployeesPage({
   const { q } = await searchParams;
   const query = q?.trim() ?? "";
 
-  const employees = await prisma.user.findMany({
-    where: {
-      status: { in: ["approved", "inactive"] },
-      ...(query
-        ? {
-            OR: [
-              { firstName: { contains: query, mode: "insensitive" } },
-              { lastName: { contains: query, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      position: true,
-      status: true,
-    },
-  });
+  const [employees, approvedCount] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        status: { in: ["pending", "approved", "inactive"] },
+        ...(query
+          ? {
+              OR: [
+                { firstName: { contains: query, mode: "insensitive" } },
+                { lastName: { contains: query, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      // Oczekujący na zatwierdzenie trafiają na górę (kolejność enuma:
+      // pending → approved → inactive), potem alfabetycznie.
+      orderBy: [{ status: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        position: true,
+        status: true,
+      },
+    }),
+    // Liczone niezależnie od filtra wyszukiwania — służy do zablokowania
+    // dezaktywacji ostatniego aktywnego pracownika już w UI.
+    prisma.user.count({ where: { status: "approved" } }),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -64,7 +71,11 @@ export default async function EmployeesPage({
         <SearchInput initialQuery={query} />
       </Suspense>
 
-      <EmployeesTable employees={employees} currentUserId={session.user.id} />
+      <EmployeesTable
+        employees={employees}
+        currentUserId={session.user.id}
+        approvedCount={approvedCount}
+      />
     </div>
   );
 }

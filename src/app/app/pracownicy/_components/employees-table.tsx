@@ -18,12 +18,20 @@ type Employee = {
   status: "approved" | "inactive" | "pending";
 };
 
+const statusMeta = {
+  approved: { label: "Aktywny", variant: "secondary" },
+  inactive: { label: "Nieaktywny", variant: "outline" },
+  pending: { label: "Oczekuje", variant: "default" },
+} as const;
+
 export function EmployeesTable({
   employees,
   currentUserId,
+  approvedCount,
 }: {
   employees: Employee[];
   currentUserId: string;
+  approvedCount: number;
 }) {
   if (employees.length === 0) {
     return (
@@ -54,14 +62,15 @@ export function EmployeesTable({
               <TableCell>{employee.position ?? "—"}</TableCell>
               <TableCell className="text-muted-foreground">{employee.email}</TableCell>
               <TableCell>
-                <Badge variant={employee.status === "inactive" ? "outline" : "secondary"}>
-                  {employee.status === "inactive" ? "Nieaktywny" : "Aktywny"}
+                <Badge variant={statusMeta[employee.status].variant}>
+                  {statusMeta[employee.status].label}
                 </Badge>
               </TableCell>
               <TableCell>
                 <EmployeeRowActions
                   employee={employee}
                   isCurrentUser={employee.id === currentUserId}
+                  isLastActive={employee.status === "approved" && approvedCount <= 1}
                 />
               </TableCell>
             </TableRow>
