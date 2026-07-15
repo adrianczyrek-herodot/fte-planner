@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Pencil } from "lucide-react";
 
 import { createOrUpdateAssignment } from "@/app/actions/assignments";
+import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,14 +48,9 @@ export function AssignmentEditDialog({
   const action = createOrUpdateAssignment.bind(null, projectId, assignment.id);
   const [state, formAction, pending] = useActionState(action, undefined);
 
-  // Zamknij dialog po udanym zapisie (ten sam wzorzec co w pozostałych oknach).
-  const [lastHandledState, setLastHandledState] = useState(state);
-  if (state !== lastHandledState) {
-    setLastHandledState(state);
-    if (state?.success && open) {
-      setOpen(false);
-    }
-  }
+  useActionEffect(state, (s) => {
+    if (s?.success && open) setOpen(false);
+  });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

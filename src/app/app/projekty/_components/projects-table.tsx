@@ -10,7 +10,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { getProjectDueStatus, formatDate } from "@/lib/project-status";
+import {
+  getProjectDueStatus,
+  formatDate,
+  projectStatusMeta,
+} from "@/lib/project-status";
 import { ProjectRowActions } from "./project-row-actions";
 
 type Project = {
@@ -23,12 +27,6 @@ type Project = {
   attachmentCount: number;
   hasConflict: boolean;
 };
-
-const statusLabels = {
-  upcoming: "Przed terminem",
-  overdue: "Po terminie",
-  "no-due-date": "Brak terminu",
-} as const;
 
 export function ProjectsTable({ projects }: { projects: Project[] }) {
   if (projects.length === 0) {
@@ -77,8 +75,8 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
                 <TableCell>{formatDate(project.startDate)}</TableCell>
                 <TableCell>{formatDate(project.endDate)}</TableCell>
                 <TableCell>
-                  <Badge variant={status === "overdue" ? "destructive" : "secondary"}>
-                    {statusLabels[status]}
+                  <Badge variant={projectStatusMeta[status].variant}>
+                    {projectStatusMeta[status].label}
                   </Badge>
                 </TableCell>
                 <TableCell>{project.assigneeCount}</TableCell>

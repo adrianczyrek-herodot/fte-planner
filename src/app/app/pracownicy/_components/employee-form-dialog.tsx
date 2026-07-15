@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import { createEmployee, updateEmployee } from "@/app/actions/employees";
+import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,17 +35,9 @@ export function EmployeeFormDialog({ mode, trigger, employee }: Props) {
   const action = mode === "create" ? createEmployee : updateEmployee;
   const [state, formAction, pending] = useActionState(action, undefined);
 
-  // Close the dialog exactly once when a new successful submission comes in.
-  // Calling setState during render (guarded by comparing to the previous
-  // state instance) is React's documented way to adjust state in response to
-  // a value changing, without the cascading-render risk of doing it in an effect.
-  const [lastHandledState, setLastHandledState] = useState(state);
-  if (state !== lastHandledState) {
-    setLastHandledState(state);
-    if (state?.success && open) {
-      setOpen(false);
-    }
-  }
+  useActionEffect(state, (s) => {
+    if (s?.success && open) setOpen(false);
+  });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

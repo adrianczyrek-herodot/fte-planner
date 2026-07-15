@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { UserPlus } from "lucide-react";
 
 import { createOrUpdateAssignment } from "@/app/actions/assignments";
+import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,15 +29,11 @@ export function AssignmentForm({
   const action = createOrUpdateAssignment.bind(null, projectId, null);
   const [state, formAction, pending] = useActionState(action, undefined);
 
-  // Reset formularza po udanym zapisie (ten sam wzorzec co przy załącznikach).
+  // Reset formularza po udanym zapisie.
   const [formKey, setFormKey] = useState(0);
-  const [lastHandledState, setLastHandledState] = useState(state);
-  if (state !== lastHandledState) {
-    setLastHandledState(state);
-    if (state?.success) {
-      setFormKey((key) => key + 1);
-    }
-  }
+  useActionEffect(state, (s) => {
+    if (s?.success) setFormKey((key) => key + 1);
+  });
 
   return (
     <div className="flex flex-col gap-2">

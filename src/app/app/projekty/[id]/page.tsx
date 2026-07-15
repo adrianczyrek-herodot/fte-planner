@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
 import { requireApprovedUser } from "@/app/actions/auth";
-import { formatDate, getProjectDueStatus } from "@/lib/project-status";
+import {
+  formatDate,
+  getProjectDueStatus,
+  projectStatusMeta,
+} from "@/lib/project-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,12 +22,6 @@ import { AttachmentUploadForm } from "./_components/attachment-upload-form";
 import { AttachmentList } from "./_components/attachment-list";
 import { AssignmentForm } from "./_components/assignment-form";
 import { AssignmentsList } from "./_components/assignments-list";
-
-const statusLabels = {
-  upcoming: "Przed terminem",
-  overdue: "Po terminie",
-  "no-due-date": "Brak terminu",
-} as const;
 
 export async function generateMetadata({
   params,
@@ -124,8 +122,8 @@ export default async function ProjectDetailPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Badge variant={status === "overdue" ? "destructive" : "secondary"}>
-            {statusLabels[status]}
+          <Badge variant={projectStatusMeta[status].variant}>
+            {projectStatusMeta[status].label}
           </Badge>
         </CardContent>
       </Card>
