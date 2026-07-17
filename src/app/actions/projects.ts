@@ -7,9 +7,11 @@ import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { requireApprovedUser } from "@/app/actions/auth";
+import { moveDatesToMonth } from "@/lib/timeline";
 import { ProjectSchema, ProjectFormState } from "@/lib/validation/project";
 
 const PROJECTS_PATH = "/app/projekty";
+const TIMELINE_PATH = "/app/timeline";
 
 export async function createProject(
   _state: ProjectFormState,
@@ -166,4 +168,37 @@ export async function deleteProject(formData: FormData) {
   await Promise.allSettled(attachments.map((a) => del(a.fileUrl)));
 
   revalidatePath(PROJECTS_PATH);
+}
+
+// Przeciągnięcie kafelka projektu na inny miesiąc na osi czasu — przesuwa daty
+// projektu (logika w lib/timeline). Zmiana widoczna też na liście projektów.
+export async function moveProjectToMonth(projectId: string, targetMonth: string) {
+  await requireApprovedUser();
+
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(targetMonth)) {
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { startDate: true, endDate: true },
+  });
+  if (!project) {
+    return;
+  }
+
+  const { startDate, endDate } = moveDatesToMonth(
+    project.startDate,
+    project.endDate,
+    targetMonth
+  );
+
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { startDate, endDate },
+  });
+
+  revalidatePath(TIMELINE_PATH);
+  revalidatePath(PROJECTS_PATH);
+  revalidatePath(`${PROJECTS_PATH}/${projectId}`);
 }

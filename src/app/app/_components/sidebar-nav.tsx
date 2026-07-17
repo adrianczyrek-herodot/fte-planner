@@ -10,7 +10,7 @@ const navItems = [
   { href: "/app", label: "Panel", icon: LayoutDashboard, enabled: true, adminOnly: false },
   { href: "/app/pracownicy", label: "Pracownicy", icon: Users, enabled: true, adminOnly: true },
   { href: "/app/projekty", label: "Projekty", icon: FolderKanban, enabled: true, adminOnly: false },
-  { href: "/app/timeline", label: "Timeline", icon: CalendarRange, enabled: false, adminOnly: false },
+  { href: "/app/timeline", label: "Timeline", icon: CalendarRange, enabled: true, adminOnly: false },
 ];
 
 export function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
