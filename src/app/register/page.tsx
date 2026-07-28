@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Brand } from "@/components/brand";
 import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = {
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gradient-to-b from-muted/60 to-background p-4">
+      <Brand className="text-lg" />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Utwórz konto</CardTitle>

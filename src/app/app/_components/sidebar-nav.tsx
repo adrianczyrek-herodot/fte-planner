@@ -47,8 +47,10 @@ export function SidebarNav({ isAdmin }: { isAdmin: boolean }) {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground",
-              isActive ? "bg-muted text-foreground" : "text-muted-foreground"
+              "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground",
+              isActive
+                ? "bg-primary/10 text-primary before:absolute before:top-1/2 before:left-0 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-primary"
+                : "text-muted-foreground"
             )}
           >
             <Icon className="size-4" />
