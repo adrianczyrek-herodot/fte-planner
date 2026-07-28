@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 
 import { prisma } from "@/lib/prisma";
 import { requireApprovedUser } from "@/app/actions/auth";
-import { monthRange, projectAnchorMonth, ym } from "@/lib/timeline";
-import { TimelineBoard } from "./_components/timeline-board";
+import { dayIndex, timelineRange } from "@/lib/timeline";
+import { TimelineGantt } from "./_components/timeline-gantt";
 
 export const metadata: Metadata = {
   title: "Timeline — FTE Planner",
@@ -13,7 +13,7 @@ export default async function TimelinePage() {
   await requireApprovedUser();
 
   const projectsRaw = await prisma.project.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { startDate: { sort: "asc", nulls: "last" } },
     select: {
       id: true,
       name: true,
@@ -24,32 +24,43 @@ export default async function TimelinePage() {
     },
   });
 
-  const projects = projectsRaw.map((p) => ({
-    id: p.id,
-    name: p.name,
-    anchorMonth: projectAnchorMonth(p.startDate, p.endDate),
-    hasConflict: p.assignments.some((a) => a.isConflict),
-  }));
+  // Pasek Gantta wymaga obu dat; projekty niekompletne trafiają do tacki.
+  const rows = projectsRaw
+    .filter((p) => p.startDate && p.endDate)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      hasConflict: p.assignments.some((a) => a.isConflict),
+      startDay: dayIndex(p.startDate!),
+      endDay: dayIndex(p.endDate!),
+    }));
 
-  const currentMonth = ym(new Date());
-  const anchors = projects
-    .map((p) => p.anchorMonth)
-    .filter((m): m is string => m !== null);
-  const months = monthRange(anchors, currentMonth);
+  const incomplete = projectsRaw
+    .filter((p) => !p.startDate || !p.endDate)
+    .map((p) => ({ id: p.id, name: p.name }));
+
+  const todayDay = dayIndex(new Date());
+  const { rangeStartDay, totalDays } = timelineRange(
+    rows.flatMap((r) => [r.startDay, r.endDay]),
+    todayDay
+  );
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold">Timeline</h1>
         <p className="text-muted-foreground">
-          Przeciągnij projekt na inny miesiąc, aby zmienić jego termin.
+          Przeciągnij pasek, aby przesunąć projekt; złap koniec, aby zmienić datę
+          rozpoczęcia lub zakończenia.
         </p>
       </div>
 
-      <TimelineBoard
-        months={months}
-        currentMonth={currentMonth}
-        projects={projects}
+      <TimelineGantt
+        rangeStartDay={rangeStartDay}
+        totalDays={totalDays}
+        todayDay={todayDay}
+        rows={rows}
+        incomplete={incomplete}
       />
     </div>
   );

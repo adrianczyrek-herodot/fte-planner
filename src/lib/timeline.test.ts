@@ -1,67 +1,51 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  moveDatesToMonth,
-  monthRange,
-  projectAnchorMonth,
-  ym,
+  dayIndex,
+  monthSegments,
+  parseYmd,
+  timelineRange,
+  ymd,
 } from "./timeline";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
-describe("projectAnchorMonth", () => {
-  it("kotwiczy na starcie, a przy jego braku na końcu", () => {
-    expect(projectAnchorMonth(d("2026-07-13"), d("2026-08-10"))).toBe("2026-07");
-    expect(projectAnchorMonth(null, d("2026-08-10"))).toBe("2026-08");
-    expect(projectAnchorMonth(null, null)).toBeNull();
+describe("ymd / parseYmd / dayIndex", () => {
+  it("round-trip daty i indeksu dnia", () => {
+    expect(ymd(d("2026-07-13"))).toBe("2026-07-13");
+    expect(ymd(parseYmd("2026-07-13"))).toBe("2026-07-13");
+    // różnica dni = różnica indeksów
+    expect(dayIndex(d("2026-07-13")) - dayIndex(d("2026-07-01"))).toBe(12);
   });
 });
 
-describe("moveDatesToMonth", () => {
-  it("przesuwa obie daty o tę samą liczbę miesięcy (zachowuje czas trwania)", () => {
-    const res = moveDatesToMonth(d("2026-07-13"), d("2026-08-10"), "2026-10");
-    expect(ym(res.startDate!)).toBe("2026-10");
-    expect(ym(res.endDate!)).toBe("2026-11"); // start +3 mies. → koniec też +3
-    expect(res.endDate!.getUTCDate()).toBe(10); // dzień zachowany
-  });
-
-  it("działa wstecz (na wcześniejszy miesiąc)", () => {
-    const res = moveDatesToMonth(d("2026-07-01"), null, "2026-05");
-    expect(ym(res.startDate!)).toBe("2026-05");
-    expect(res.endDate).toBeNull();
-  });
-
-  it("projekt bez dat → ustawia start na 1. dzień docelowego miesiąca", () => {
-    const res = moveDatesToMonth(null, null, "2026-09");
-    expect(ym(res.startDate!)).toBe("2026-09");
-    expect(res.startDate!.getUTCDate()).toBe(1);
-    expect(res.endDate).toBeNull();
-  });
-
-  it("przeciągnięcie na ten sam miesiąc nic nie zmienia", () => {
-    const res = moveDatesToMonth(d("2026-07-13"), d("2026-08-10"), "2026-07");
-    expect(ym(res.startDate!)).toBe("2026-07");
-    expect(ym(res.endDate!)).toBe("2026-08");
+describe("timelineRange", () => {
+  it("dosuwa do pełnych miesięcy i trzyma minimalną szerokość", () => {
+    const start = dayIndex(d("2026-07-13"));
+    const end = dayIndex(d("2026-08-10"));
+    const { rangeStartDay, totalDays } = timelineRange([start, end], start, 150);
+    // start dosunięty do 1. dnia miesiąca
+    expect(ymd(dateFromRange(rangeStartDay))).toMatch(/-01$/);
+    expect(totalDays).toBeGreaterThanOrEqual(150);
   });
 });
 
-describe("monthRange", () => {
-  it("jest ciągły, z paddingiem i minimalną szerokością", () => {
-    const range = monthRange(["2026-07"], "2026-07", 12);
-    expect(range.length).toBeGreaterThanOrEqual(12);
-    // ciągłość: kolejne miesiące bez dziur
-    for (let i = 1; i < range.length; i++) {
-      const [y0, m0] = range[i - 1].split("-").map(Number);
-      const [y1, m1] = range[i].split("-").map(Number);
-      expect(y1 * 12 + m1 - (y0 * 12 + m0)).toBe(1);
+describe("monthSegments", () => {
+  it("pokrywa cały zakres ciągłymi, nienachodzącymi miesiącami", () => {
+    const start = dayIndex(d("2026-07-01"));
+    const segs = monthSegments(start, 120);
+    // pierwszy segment zaczyna się na starcie zakresu
+    expect(segs[0].startDay).toBe(start);
+    // ciągłość: kolejny zaczyna się dokładnie po poprzednim
+    for (let i = 1; i < segs.length; i++) {
+      expect(segs[i].startDay).toBe(segs[i - 1].startDay + segs[i - 1].days);
     }
-    expect(range).toContain("2026-07");
-  });
-
-  it("obejmuje rozpiętość od najwcześniejszego do najpóźniejszego miesiąca", () => {
-    const range = monthRange(["2026-03", "2027-01"], "2026-07", 6);
-    expect(range).toContain("2026-03");
-    expect(range).toContain("2027-01");
-    expect(range[0] < "2026-03").toBe(true); // padding z przodu
+    // suma dni pokrywa >= totalDays
+    const covered = segs.reduce((a, s) => a + s.days, 0);
+    expect(covered).toBeGreaterThanOrEqual(120);
   });
 });
+
+function dateFromRange(dayIdx: number) {
+  return new Date(dayIdx * 86_400_000);
+}

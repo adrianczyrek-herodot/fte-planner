@@ -7,7 +7,7 @@ import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { requireApprovedUser } from "@/app/actions/auth";
-import { moveDatesToMonth } from "@/lib/timeline";
+import { parseYmd } from "@/lib/timeline";
 import { ProjectSchema, ProjectFormState } from "@/lib/validation/project";
 
 const PROJECTS_PATH = "/app/projekty";
@@ -170,28 +170,29 @@ export async function deleteProject(formData: FormData) {
   revalidatePath(PROJECTS_PATH);
 }
 
-// Przeciągnięcie kafelka projektu na inny miesiąc na osi czasu — przesuwa daty
-// projektu (logika w lib/timeline). Zmiana widoczna też na liście projektów.
-export async function moveProjectToMonth(projectId: string, targetMonth: string) {
+// Przeciągnięcie/rozciągnięcie paska projektu na osi Gantta — ustawia daty
+// z dokładnością do dnia. Zmiana widoczna też na liście projektów.
+export async function rescheduleProject(
+  projectId: string,
+  startYmd: string,
+  endYmd: string
+) {
   await requireApprovedUser();
 
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(targetMonth)) {
+  const isYmd = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (!isYmd(startYmd) || !isYmd(endYmd)) {
     return;
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { startDate: true, endDate: true },
-  });
-  if (!project) {
+  const startDate = parseYmd(startYmd);
+  const endDate = parseYmd(endYmd);
+  if (
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    startDate > endDate
+  ) {
     return;
   }
-
-  const { startDate, endDate } = moveDatesToMonth(
-    project.startDate,
-    project.endDate,
-    targetMonth
-  );
 
   await prisma.project.update({
     where: { id: projectId },
