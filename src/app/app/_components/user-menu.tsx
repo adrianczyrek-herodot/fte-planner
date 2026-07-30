@@ -22,6 +22,12 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+const roleLabel = {
+  admin: "Administrator",
+  manager: "Menedżer",
+  user: "Użytkownik",
+} as const;
+
 export function UserMenu({
   name,
   email,
@@ -29,7 +35,7 @@ export function UserMenu({
 }: {
   name: string;
   email: string;
-  role: "user" | "admin";
+  role: "user" | "manager" | "admin";
 }) {
   return (
     <DropdownMenu>
@@ -45,8 +51,8 @@ export function UserMenu({
         <DropdownMenuLabel className="flex flex-col gap-1">
           <span className="font-medium">{name}</span>
           <span className="font-normal text-xs text-muted-foreground">{email}</span>
-          <Badge variant={role === "admin" ? "default" : "secondary"} className="w-fit">
-            {role === "admin" ? "Administrator" : "Użytkownik"}
+          <Badge variant={role === "user" ? "secondary" : "default"} className="w-fit">
+            {roleLabel[role]}
           </Badge>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

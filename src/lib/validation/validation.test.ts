@@ -6,7 +6,7 @@ import {
   EmployeeUpdateSchema,
 } from "@/lib/validation/employee";
 import { ProjectSchema } from "@/lib/validation/project";
-import { AssignmentSchema } from "@/lib/validation/assignment";
+import { AssignmentSchema } from "@/lib/validation/staffing";
 import {
   RequestResetSchema,
   SetPasswordSchema,
@@ -131,9 +131,14 @@ describe("ProjectSchema", () => {
 });
 
 describe("AssignmentSchema", () => {
-  const base = { userId: "u1", month: "2026-07", fte: "0.7" };
+  const base = {
+    userId: "u1",
+    startMonth: "2026-07",
+    endMonth: "2026-09",
+    fte: "0.7",
+  };
 
-  it("akceptuje poprawny przydział", () => {
+  it("akceptuje poprawny przydział (okres)", () => {
     expect(AssignmentSchema.safeParse(base).success).toBe(true);
   });
 
@@ -144,10 +149,9 @@ describe("AssignmentSchema", () => {
     expect(AssignmentSchema.safeParse({ ...base, fte: "abc" }).success).toBe(false);
   });
 
-  it("wymusza format miesiąca RRRR-MM", () => {
-    expect(AssignmentSchema.safeParse({ ...base, month: "2026-13" }).success).toBe(false);
-    expect(AssignmentSchema.safeParse({ ...base, month: "07-2026" }).success).toBe(false);
-    expect(AssignmentSchema.safeParse({ ...base, month: "2026-7" }).success).toBe(false);
+  it("wymusza format miesięcy i kolejność (koniec ≥ start)", () => {
+    expect(AssignmentSchema.safeParse({ ...base, startMonth: "2026-13" }).success).toBe(false);
+    expect(AssignmentSchema.safeParse({ ...base, endMonth: "2026-06" }).success).toBe(false);
   });
 
   it("wymaga wybrania pracownika", () => {

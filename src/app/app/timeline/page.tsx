@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { prisma } from "@/lib/prisma";
-import { requireApprovedUser } from "@/app/actions/auth";
+import { requireManager } from "@/app/actions/auth";
 import { dayIndex, timelineRange } from "@/lib/timeline";
 import { TimelineGantt } from "./_components/timeline-gantt";
 
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function TimelinePage() {
-  await requireApprovedUser();
+  await requireManager();
 
   const projectsRaw = await prisma.project.findMany({
     orderBy: { startDate: { sort: "asc", nulls: "last" } },
@@ -19,8 +19,8 @@ export default async function TimelinePage() {
       name: true,
       startDate: true,
       endDate: true,
-      // Konflikt FTE czytany z istniejącej flagi (bez ponownego liczenia).
-      assignments: { select: { isConflict: true } },
+      // Konflikt FTE czytany z flagi na przydziałach (przez role).
+      roles: { select: { assignments: { select: { isConflict: true } } } },
     },
   });
 
@@ -30,7 +30,7 @@ export default async function TimelinePage() {
     .map((p) => ({
       id: p.id,
       name: p.name,
-      hasConflict: p.assignments.some((a) => a.isConflict),
+      hasConflict: p.roles.some((r) => r.assignments.some((a) => a.isConflict)),
       startDay: dayIndex(p.startDate!),
       endDay: dayIndex(p.endDate!),
     }));

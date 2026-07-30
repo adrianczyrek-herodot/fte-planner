@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
-import { requireApprovedUser } from "@/app/actions/auth";
+import { requireManager } from "@/app/actions/auth";
 import {
   formatDate,
   getProjectDueStatus,
@@ -17,11 +17,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { roleCoverage } from "@/lib/staffing";
 import { ProjectFormDialog } from "../_components/project-form-dialog";
 import { AttachmentUploadForm } from "./_components/attachment-upload-form";
 import { AttachmentList } from "./_components/attachment-list";
-import { AssignmentForm } from "./_components/assignment-form";
-import { AssignmentsList } from "./_components/assignments-list";
+import { StaffingSection } from "./_components/staffing-section";
 
 export async function generateMetadata({
   params,
@@ -44,7 +44,7 @@ export default async function ProjectDetailPage({
   // Layouts don't reliably re-render on client-side navigation (Next.js
   // partial rendering), so re-check auth here too rather than relying
   // solely on the shared /app layout.
-  await requireApprovedUser();
+  await requireManager();
 
   const { id } = await params;
 
@@ -52,15 +52,13 @@ export default async function ProjectDetailPage({
     where: { id },
     include: {
       attachments: { orderBy: { createdAt: "desc" } },
-      assignments: {
-        orderBy: [{ month: "desc" }, { createdAt: "desc" }],
-        select: {
-          id: true,
-          userId: true,
-          month: true,
-          fte: true,
-          isConflict: true,
-          user: { select: { firstName: true, lastName: true } },
+      roles: {
+        orderBy: [{ startMonth: "asc" }, { createdAt: "asc" }],
+        include: {
+          assignments: {
+            orderBy: [{ startMonth: "asc" }],
+            include: { user: { select: { firstName: true, lastName: true } } },
+          },
         },
       },
     },
@@ -72,22 +70,47 @@ export default async function ProjectDetailPage({
 
   const status = getProjectDueStatus(project.endDate);
 
-  // Lista pracowników do przydzielenia + serializacja Decimal → string dla
-  // komponentów prezentacyjnych.
   const employees = await prisma.user.findMany({
     where: { status: "approved" },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    select: { id: true, firstName: true, lastName: true },
+    select: { id: true, firstName: true, lastName: true, skills: true },
   });
 
-  const assignments = project.assignments.map((a) => ({
-    id: a.id,
-    userId: a.userId,
-    month: a.month,
-    fte: a.fte.toString(),
-    isConflict: a.isConflict,
-    user: a.user,
-  }));
+  // Serializacja Decimal → number/string + pokrycie/luka obsady per miesiąc.
+  const roles = project.roles.map((r) => {
+    const assignments = r.assignments.map((a) => ({
+      id: a.id,
+      userId: a.userId,
+      startMonth: a.startMonth,
+      endMonth: a.endMonth,
+      fte: a.fte.toString(),
+      isConflict: a.isConflict,
+      name: `${a.user.firstName} ${a.user.lastName}`,
+    }));
+    const coverage = roleCoverage(
+      {
+        startMonth: r.startMonth,
+        endMonth: r.endMonth,
+        requiredFte: Number(r.requiredFte),
+      },
+      r.assignments.map((a) => ({
+        id: a.id,
+        startMonth: a.startMonth,
+        endMonth: a.endMonth,
+        fte: Number(a.fte),
+      }))
+    );
+    return {
+      id: r.id,
+      position: r.position,
+      startMonth: r.startMonth,
+      endMonth: r.endMonth,
+      requiredFte: r.requiredFte.toString(),
+      hasGap: coverage.some((c) => c.gap > 0),
+      coverage,
+      assignments,
+    };
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -139,15 +162,7 @@ export default async function ProjectDetailPage({
         </CardContent>
       </Card>
 
-      <div className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Przydziały</h2>
-        <AssignmentForm projectId={project.id} employees={employees} />
-        <AssignmentsList
-          assignments={assignments}
-          projectId={project.id}
-          employees={employees}
-        />
-      </div>
+      <StaffingSection projectId={project.id} roles={roles} employees={employees} />
 
       <div className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Załączniki</h2>

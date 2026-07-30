@@ -18,6 +18,7 @@ datasource db {
 
 enum Role {
   user
+  manager
   admin
 }
 
@@ -80,10 +81,30 @@ model Project {
   budget      Decimal?  @db.Decimal(12, 2) // budżet wstępny
 
   attachments Attachment[]
+  roles       ProjectRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Zapotrzebowanie na stanowisko w projekcie: rola + okres + wymagane FTE.
+// Ludzi przypisujemy do tego slotu (Assignment) — różne osoby na tę samą rolę
+// w różnych okresach są w pełni możliwe.
+model ProjectRole {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position    String // np. "Frontend", "Analityk"
+  startMonth  String  @db.VarChar(7) // "YYYY-MM"
+  endMonth    String  @db.VarChar(7)
+  requiredFte Decimal @db.Decimal(4, 2)
+
   assignments Assignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([projectId])
 }
 
 model Attachment {
@@ -98,25 +119,26 @@ model Attachment {
   @@index([projectId])
 }
 
+// Obsada slotu: osoba przypisana do roli na dany okres z określonym FTE.
 model Assignment {
-  id        String  @id @default(cuid())
-  userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectRoleId String
+  projectRole   ProjectRole @relation(fields: [projectRoleId], references: [id], onDelete: Cascade)
 
-  month String  @db.VarChar(7) // "YYYY-MM"
-  fte   Decimal @db.Decimal(4, 2)
+  startMonth String  @db.VarChar(7) // "YYYY-MM"
+  endMonth   String  @db.VarChar(7)
+  fte        Decimal @db.Decimal(4, 2)
 
-  // Wyliczane: suma FTE użytkownika w danym month > 1.0. Zapis dozwolony mimo konfliktu.
+  // Wyliczane: w którymkolwiek z pokrytych miesięcy suma FTE usera > 1.0.
   isConflict Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, projectId, month])
-  @@index([userId, month])
-  @@index([projectId])
+  @@index([userId])
+  @@index([projectRoleId])
 }
 
 // ---------------------------------------------------------------------------

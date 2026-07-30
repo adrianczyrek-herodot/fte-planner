@@ -27,13 +27,14 @@ export async function createEmployee(
     lastName: formData.get("lastName"),
     position: formData.get("position"),
     skills: formData.getAll("skills"),
+    role: formData.get("role"),
   });
 
   if (!validatedFields.success) {
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { email, firstName, lastName, position, skills } = validatedFields.data;
+  const { email, firstName, lastName, position, skills, role } = validatedFields.data;
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
@@ -47,7 +48,7 @@ export async function createEmployee(
       lastName,
       position,
       skills,
-      role: "user",
+      role,
       // Bez hasła konto nie pozwala się zalogować; pracownik ustawi je przez
       // link z zaproszenia. Status "approved" sprawia, że od razu widnieje na
       // liście pracowników.
@@ -68,7 +69,7 @@ export async function updateEmployee(
   _state: EmployeeFormState,
   formData: FormData
 ): Promise<EmployeeFormState> {
-  await requireAdmin();
+  const session = await requireAdmin();
 
   const validatedFields = EmployeeUpdateSchema.safeParse({
     id: formData.get("id"),
@@ -76,17 +77,25 @@ export async function updateEmployee(
     lastName: formData.get("lastName"),
     position: formData.get("position"),
     skills: formData.getAll("skills"),
+    role: formData.get("role"),
   });
 
   if (!validatedFields.success) {
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { id, firstName, lastName, position, skills } = validatedFields.data;
+  const { id, firstName, lastName, position, skills, role } = validatedFields.data;
 
   await prisma.user.update({
     where: { id },
-    data: { firstName, lastName, position, skills },
+    data: {
+      firstName,
+      lastName,
+      position,
+      skills,
+      // Nie pozwól zmienić własnej roli (ochrona przed samo-odebraniem admina).
+      ...(id === session.user.id ? {} : { role }),
+    },
   });
 
   revalidatePath(EMPLOYEES_PATH);

@@ -24,6 +24,7 @@ type Employee = {
   lastName: string;
   position: string | null;
   skills: string[];
+  role: "user" | "manager" | "admin";
   status: "approved" | "inactive" | "pending";
 };
 

@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/app/actions/auth";
+import { sumFte } from "@/lib/fte";
 import { SearchInput } from "./_components/search-input";
 import { SkillFilter } from "./_components/skill-filter";
 import { EmployeesTable } from "./_components/employees-table";
@@ -54,17 +55,20 @@ export default async function EmployeesPage({
         lastName: true,
         position: true,
         skills: true,
+        role: true,
         status: true,
       },
     }),
     // Liczone niezależnie od filtra wyszukiwania — służy do zablokowania
     // dezaktywacji ostatniego aktywnego pracownika już w UI.
     prisma.user.count({ where: { status: "approved" } }),
-    // Suma FTE per pracownik w bieżącym miesiącu (jedno zapytanie zamiast N).
-    prisma.assignment.groupBy({
-      by: ["userId"],
-      where: { month: currentMonth },
-      _sum: { fte: true },
+    // Przydziały nachodzące na bieżący miesiąc — do kolumny "Obciążenie".
+    prisma.assignment.findMany({
+      where: {
+        startMonth: { lte: currentMonth },
+        endMonth: { gte: currentMonth },
+      },
+      select: { userId: true, fte: true },
     }),
     // Wszystkie kompetencje (do filtra i podpowiedzi w formularzu).
     prisma.user.findMany({ select: { skills: true } }),
@@ -74,8 +78,14 @@ export default async function EmployeesPage({
     new Set(skillRows.flatMap((r) => r.skills))
   ).sort((a, b) => a.localeCompare(b, "pl"));
 
+  const ftesByUser = new Map<string, number[]>();
+  for (const a of loads) {
+    const list = ftesByUser.get(a.userId) ?? [];
+    list.push(Number(a.fte));
+    ftesByUser.set(a.userId, list);
+  }
   const loadByUser = new Map(
-    loads.map((l) => [l.userId, Number(l._sum.fte ?? 0)])
+    [...ftesByUser].map(([userId, ftes]) => [userId, sumFte(ftes)])
   );
   const employeesWithLoad = employees.map((e) => ({
     ...e,

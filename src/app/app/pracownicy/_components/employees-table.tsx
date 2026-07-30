@@ -17,9 +17,12 @@ type Employee = {
   lastName: string;
   position: string | null;
   skills: string[];
+  role: "user" | "manager" | "admin";
   status: "approved" | "inactive" | "pending";
   monthlyFte: number;
 };
+
+const roleLabel = { manager: "Menedżer", admin: "Administrator", user: "" } as const;
 
 // Kompaktowy zapis FTE: 0.8, 1.4, 1 (bez zbędnych zer).
 function formatFte(value: number) {
@@ -68,7 +71,14 @@ export function EmployeesTable({
           {employees.map((employee) => (
             <TableRow key={employee.id}>
               <TableCell className="font-medium">
-                {employee.firstName} {employee.lastName}
+                <div className="flex items-center gap-2">
+                  {employee.firstName} {employee.lastName}
+                  {employee.role !== "user" && (
+                    <Badge variant="outline" className="font-normal text-muted-foreground">
+                      {roleLabel[employee.role]}
+                    </Badge>
+                  )}
+                </div>
               </TableCell>
               <TableCell>{employee.position ?? "—"}</TableCell>
               <TableCell>

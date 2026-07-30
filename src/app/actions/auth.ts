@@ -130,3 +130,30 @@ export async function requireAdmin() {
 
   return session;
 }
+
+// Dostęp zarządczy: admin LUB menedżer (delivery manager). Zwykły user →
+// przekierowanie na własny (ograniczony) dashboard.
+export async function requireManager() {
+  const session = await requireApprovedUser();
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  });
+
+  if (dbUser?.role !== "admin" && dbUser?.role !== "manager") {
+    redirect("/app");
+  }
+
+  return session;
+}
+
+// Rola pobrana świeżo z bazy — do rozgałęzień UI (np. dashboard admin vs user).
+export async function getCurrentRole() {
+  const session = await requireApprovedUser();
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  });
+  return { session, role: dbUser?.role ?? "user" };
+}

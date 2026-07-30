@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { requireApprovedUser } from "@/app/actions/auth";
-import { isOverAllocated } from "@/lib/fte";
+import { requireManager } from "@/app/actions/auth";
+import { isOverAllocated, sumFte } from "@/lib/fte";
+import { monthsBetween } from "@/lib/staffing";
 import { formatMonthLabel, ym } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,7 @@ export default async function ZasobyPage({
 }: {
   searchParams: Promise<{ range?: string; status?: string; skill?: string }>;
 }) {
-  await requireApprovedUser();
+  await requireManager();
 
   const sp = await searchParams;
   const range = sp.range ?? "quarter";
@@ -69,22 +70,32 @@ export default async function ZasobyPage({
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: { id: true, firstName: true, lastName: true, position: true, skills: true },
     }),
-    prisma.assignment.groupBy({
-      by: ["userId", "month"],
-      where: { month: { in: months } },
-      _sum: { fte: true },
+    // Przydziały nachodzące na wybrany zakres (rozbijamy je na miesiące).
+    prisma.assignment.findMany({
+      where: {
+        startMonth: { lte: months[months.length - 1] },
+        endMonth: { gte: months[0] },
+      },
+      select: { userId: true, startMonth: true, endMonth: true, fte: true },
     }),
     prisma.user.findMany({ select: { skills: true } }),
   ]);
 
-  const loadMap = new Map<string, number>();
-  for (const l of loads) {
-    loadMap.set(`${l.userId}:${l.month}`, Number(l._sum.fte ?? 0));
+  const monthSet = new Set(months);
+  const loadMap = new Map<string, number[]>(); // "userId:month" → lista FTE
+  for (const a of loads) {
+    for (const m of monthsBetween(a.startMonth, a.endMonth)) {
+      if (!monthSet.has(m)) continue;
+      const key = `${a.userId}:${m}`;
+      const list = loadMap.get(key) ?? [];
+      list.push(Number(a.fte));
+      loadMap.set(key, list);
+    }
   }
 
   const rows = employees
     .map((e) => {
-      const cells = months.map((m) => loadMap.get(`${e.id}:${m}`) ?? 0);
+      const cells = months.map((m) => sumFte(loadMap.get(`${e.id}:${m}`) ?? []));
       return {
         ...e,
         cells,

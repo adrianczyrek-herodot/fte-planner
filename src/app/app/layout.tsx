@@ -1,4 +1,4 @@
-import { requireApprovedUser } from "@/app/actions/auth";
+import { getCurrentRole } from "@/app/actions/auth";
 import { Brand } from "@/components/brand";
 import { SidebarNav } from "./_components/sidebar-nav";
 import { UserMenu } from "./_components/user-menu";
@@ -8,7 +8,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireApprovedUser();
+  const { session, role } = await getCurrentRole();
   const user = session.user;
 
   return (
@@ -17,7 +17,7 @@ export default async function AppLayout({
         <div className="flex h-14 items-center border-b px-4">
           <Brand className="text-sm" />
         </div>
-        <SidebarNav isAdmin={user.role === "admin"} />
+        <SidebarNav role={role} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -27,7 +27,7 @@ export default async function AppLayout({
           <UserMenu
             name={user.name ?? user.email ?? "Użytkownik"}
             email={user.email ?? ""}
-            role={user.role}
+            role={role}
           />
         </header>
 

@@ -6,7 +6,7 @@ import { del, put } from "@vercel/blob";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
-import { requireApprovedUser } from "@/app/actions/auth";
+import { requireManager } from "@/app/actions/auth";
 import { parseYmd } from "@/lib/timeline";
 import { ProjectSchema, ProjectFormState } from "@/lib/validation/project";
 
@@ -17,7 +17,7 @@ export async function createProject(
   _state: ProjectFormState,
   formData: FormData
 ): Promise<ProjectFormState> {
-  await requireApprovedUser();
+  await requireManager();
 
   const validatedFields = ProjectSchema.safeParse({
     name: formData.get("name"),
@@ -51,7 +51,7 @@ export async function updateProject(
   _state: ProjectFormState,
   formData: FormData
 ): Promise<ProjectFormState> {
-  await requireApprovedUser();
+  await requireManager();
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) {
@@ -97,7 +97,7 @@ export async function uploadAttachment(
   _state: AttachmentUploadState,
   formData: FormData
 ): Promise<AttachmentUploadState> {
-  await requireApprovedUser();
+  await requireManager();
 
   const file = formData.get("file");
 
@@ -129,7 +129,7 @@ export async function uploadAttachment(
 }
 
 export async function deleteAttachment(formData: FormData) {
-  await requireApprovedUser();
+  await requireManager();
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) {
@@ -152,7 +152,7 @@ export async function deleteAttachment(formData: FormData) {
 }
 
 export async function deleteProject(formData: FormData) {
-  await requireApprovedUser();
+  await requireManager();
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) {
@@ -181,7 +181,7 @@ export async function rescheduleProject(
   startYmd: string,
   endYmd: string
 ) {
-  await requireApprovedUser();
+  await requireManager();
 
   const isYmd = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
   if (!isYmd(startYmd) || !isYmd(endYmd)) {

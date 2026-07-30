@@ -18,6 +18,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Employee = {
   id: string;
@@ -26,6 +33,7 @@ type Employee = {
   lastName: string;
   position: string | null;
   skills: string[];
+  role: "user" | "manager" | "admin";
 };
 
 type Props = (
@@ -131,6 +139,20 @@ export function EmployeeFormDialog({
               suggestions={allSkills}
               placeholder="np. React, Figma, SQL — Enter dodaje"
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="role">Rola</Label>
+            <Select name="role" defaultValue={employee?.role ?? "user"}>
+              <SelectTrigger id="role" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user">Użytkownik (ograniczony dostęp)</SelectItem>
+                <SelectItem value="manager">Menedżer (projekty i zasoby)</SelectItem>
+                <SelectItem value="admin">Administrator (pełny dostęp)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {state?.message && (

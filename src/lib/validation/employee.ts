@@ -7,12 +7,15 @@ const skills = z
   .default([])
   .transform((arr) => Array.from(new Set(arr)));
 
+const role = z.enum(["user", "manager", "admin"]).default("user");
+
 export const EmployeeCreateSchema = z.object({
   email: z.email({ error: "Podaj poprawny adres e-mail." }).trim(),
   firstName: z.string().trim().min(1, { error: "Imię jest wymagane." }),
   lastName: z.string().trim().min(1, { error: "Nazwisko jest wymagane." }),
   position: z.string().trim().min(1, { error: "Stanowisko jest wymagane." }),
   skills,
+  role,
 });
 
 export const EmployeeUpdateSchema = z.object({
@@ -21,6 +24,7 @@ export const EmployeeUpdateSchema = z.object({
   lastName: z.string().trim().min(1, { error: "Nazwisko jest wymagane." }),
   position: z.string().trim().min(1, { error: "Stanowisko jest wymagane." }),
   skills,
+  role,
 });
 
 export type EmployeeFormState =

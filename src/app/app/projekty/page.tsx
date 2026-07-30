@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { requireApprovedUser } from "@/app/actions/auth";
+import { requireManager } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { ProjectFormDialog } from "./_components/project-form-dialog";
 import { ProjectsTable } from "./_components/projects-table";
@@ -20,7 +20,7 @@ export default async function ProjectsPage({
   // Layouts don't reliably re-render on client-side navigation (Next.js
   // partial rendering), so re-check auth here too rather than relying
   // solely on the shared /app layout.
-  await requireApprovedUser();
+  await requireManager();
 
   const { status } = await searchParams;
   const now = new Date();
@@ -43,23 +43,27 @@ export default async function ProjectsPage({
       endDate: true,
       budget: true,
       _count: { select: { attachments: true } },
-      // isConflict jest już utrzymywany przez istniejącą logikę FTE — czytamy
-      // flagę zamiast liczyć konflikt drugi raz. userId do policzenia osób.
-      assignments: { select: { userId: true, isConflict: true } },
+      // Obsada i konflikt liczone z ról → przydziałów.
+      roles: {
+        select: { assignments: { select: { userId: true, isConflict: true } } },
+      },
     },
   });
 
-  const projects = projectsRaw.map((p) => ({
-    id: p.id,
-    name: p.name,
-    description: p.description,
-    startDate: p.startDate,
-    endDate: p.endDate,
-    budget: p.budget != null ? Number(p.budget) : null,
-    attachmentCount: p._count.attachments,
-    assigneeCount: new Set(p.assignments.map((a) => a.userId)).size,
-    hasConflict: p.assignments.some((a) => a.isConflict),
-  }));
+  const projects = projectsRaw.map((p) => {
+    const assignments = p.roles.flatMap((r) => r.assignments);
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      budget: p.budget != null ? Number(p.budget) : null,
+      attachmentCount: p._count.attachments,
+      assigneeCount: new Set(assignments.map((a) => a.userId)).size,
+      hasConflict: assignments.some((a) => a.isConflict),
+    };
+  });
 
   return (
     <div className="flex flex-col gap-4">
