@@ -108,6 +108,7 @@ export default async function ProjectDetailPage({
             description: project.description,
             startDate: project.startDate,
             endDate: project.endDate,
+            budget: project.budget != null ? Number(project.budget) : null,
           }}
           trigger={<Button variant="outline">Edytuj projekt</Button>}
         />
@@ -115,10 +116,20 @@ export default async function ProjectDetailPage({
 
       <Card className="max-w-md">
         <CardHeader>
-          <CardTitle>Terminy</CardTitle>
+          <CardTitle>Terminy i budżet</CardTitle>
           <CardDescription className="flex flex-col gap-1">
             <span>Data rozpoczęcia: {formatDate(project.startDate)}</span>
             <span>Data zakończenia: {formatDate(project.endDate)}</span>
+            <span>
+              Budżet:{" "}
+              {project.budget != null
+                ? new Intl.NumberFormat("pl-PL", {
+                    style: "currency",
+                    currency: "PLN",
+                    maximumFractionDigits: 0,
+                  }).format(Number(project.budget))
+                : "—"}
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>

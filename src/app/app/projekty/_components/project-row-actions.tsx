@@ -23,6 +23,7 @@ type Project = {
   description: string | null;
   startDate: Date | null;
   endDate: Date | null;
+  budget: number | null;
 };
 
 export function ProjectRowActions({ project }: { project: Project }) {

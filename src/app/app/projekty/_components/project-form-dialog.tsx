@@ -25,6 +25,7 @@ type Project = {
   description: string | null;
   startDate: Date | null;
   endDate: Date | null;
+  budget: number | null;
 };
 
 type Props =
@@ -114,6 +115,22 @@ export function ProjectFormDialog({ mode, trigger, project }: Props) {
                 <p className="text-sm text-destructive">{state.errors.endDate[0]}</p>
               )}
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="budget">Budżet (PLN)</Label>
+            <Input
+              id="budget"
+              name="budget"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={project?.budget != null ? String(project.budget) : ""}
+              placeholder="np. 150000"
+            />
+            {state?.errors?.budget && (
+              <p className="text-sm text-destructive">{state.errors.budget[0]}</p>
+            )}
           </div>
 
           {state?.message && (

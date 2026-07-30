@@ -2,13 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, FolderKanban, CalendarRange } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  FolderKanban,
+  CalendarRange,
+  Gauge,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/app", label: "Panel", icon: LayoutDashboard, enabled: true, adminOnly: false },
   { href: "/app/pracownicy", label: "Pracownicy", icon: Users, enabled: true, adminOnly: true },
+  { href: "/app/zasoby", label: "Zasoby", icon: Gauge, enabled: true, adminOnly: false },
   { href: "/app/projekty", label: "Projekty", icon: FolderKanban, enabled: true, adminOnly: false },
   { href: "/app/timeline", label: "Timeline", icon: CalendarRange, enabled: true, adminOnly: false },
 ];

@@ -9,12 +9,23 @@ const optionalDate = z.preprocess(
   z.coerce.date({ error: "Nieprawidłowa data." }).nullable()
 );
 
+// Puste → null; inaczej nieujemna liczba.
+const optionalBudget = z.preprocess(
+  (value) =>
+    typeof value === "string" && value.trim() !== "" ? value.trim() : null,
+  z.coerce
+    .number({ error: "Budżet musi być liczbą." })
+    .min(0, { error: "Budżet nie może być ujemny." })
+    .nullable()
+);
+
 export const ProjectSchema = z
   .object({
     name: z.string().trim().min(1, { error: "Nazwa jest wymagana." }),
     description: z.string().trim().optional(),
     startDate: optionalDate,
     endDate: optionalDate,
+    budget: optionalBudget,
   })
   // Jeśli obie daty podane, zakończenie nie może być wcześniejsze niż rozpoczęcie.
   .refine(
@@ -33,6 +44,7 @@ export type ProjectFormState =
         name?: string[];
         startDate?: string[];
         endDate?: string[];
+        budget?: string[];
       };
       message?: string;
     }

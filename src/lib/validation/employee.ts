@@ -1,10 +1,18 @@
 import * as z from "zod";
 
+// Kompetencje/narzędzia jako tagi — z FormData przychodzą jako wiele wartości.
+const skills = z
+  .array(z.string().trim().min(1).max(40))
+  .max(30)
+  .default([])
+  .transform((arr) => Array.from(new Set(arr)));
+
 export const EmployeeCreateSchema = z.object({
   email: z.email({ error: "Podaj poprawny adres e-mail." }).trim(),
   firstName: z.string().trim().min(1, { error: "Imię jest wymagane." }),
   lastName: z.string().trim().min(1, { error: "Nazwisko jest wymagane." }),
   position: z.string().trim().min(1, { error: "Stanowisko jest wymagane." }),
+  skills,
 });
 
 export const EmployeeUpdateSchema = z.object({
@@ -12,6 +20,7 @@ export const EmployeeUpdateSchema = z.object({
   firstName: z.string().trim().min(1, { error: "Imię jest wymagane." }),
   lastName: z.string().trim().min(1, { error: "Nazwisko jest wymagane." }),
   position: z.string().trim().min(1, { error: "Stanowisko jest wymagane." }),
+  skills,
 });
 
 export type EmployeeFormState =

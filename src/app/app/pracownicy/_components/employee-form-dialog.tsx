@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TagsInput } from "@/components/tags-input";
 import {
   Dialog,
   DialogContent,
@@ -24,13 +25,20 @@ type Employee = {
   firstName: string;
   lastName: string;
   position: string | null;
+  skills: string[];
 };
 
-type Props =
+type Props = (
   | { mode: "create"; trigger: React.ReactNode; employee?: undefined }
-  | { mode: "edit"; trigger: React.ReactNode; employee: Employee };
+  | { mode: "edit"; trigger: React.ReactNode; employee: Employee }
+) & { allSkills?: string[] };
 
-export function EmployeeFormDialog({ mode, trigger, employee }: Props) {
+export function EmployeeFormDialog({
+  mode,
+  trigger,
+  employee,
+  allSkills = [],
+}: Props) {
   const [open, setOpen] = useState(false);
   const action = mode === "create" ? createEmployee : updateEmployee;
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -113,6 +121,16 @@ export function EmployeeFormDialog({ mode, trigger, employee }: Props) {
             {state?.errors?.position && (
               <p className="text-sm text-destructive">{state.errors.position[0]}</p>
             )}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="skills">Kompetencje / narzędzia</Label>
+            <TagsInput
+              name="skills"
+              defaultValue={employee?.skills ?? []}
+              suggestions={allSkills}
+              placeholder="np. React, Figma, SQL — Enter dodaje"
+            />
           </div>
 
           {state?.message && (

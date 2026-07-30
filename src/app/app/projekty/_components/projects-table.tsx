@@ -23,6 +23,7 @@ type Project = {
   description: string | null;
   startDate: Date | null;
   endDate: Date | null;
+  budget: number | null;
   assigneeCount: number;
   attachmentCount: number;
   hasConflict: boolean;
@@ -89,6 +90,7 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
                       description: project.description,
                       startDate: project.startDate,
                       endDate: project.endDate,
+                      budget: project.budget,
                     }}
                   />
                 </TableCell>

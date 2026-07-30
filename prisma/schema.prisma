@@ -39,6 +39,7 @@ model User {
   firstName    String
   lastName     String
   position     String?
+  skills       String[]   @default([]) // kompetencje/narzędzia jako tagi
   role         Role       @default(user)
   status       UserStatus @default(pending)
 
@@ -76,6 +77,7 @@ model Project {
   description String?
   startDate   DateTime?
   endDate     DateTime?
+  budget      Decimal?  @db.Decimal(12, 2) // budżet wstępny
 
   attachments Attachment[]
   assignments Assignment[]

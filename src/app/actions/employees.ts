@@ -26,13 +26,14 @@ export async function createEmployee(
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
     position: formData.get("position"),
+    skills: formData.getAll("skills"),
   });
 
   if (!validatedFields.success) {
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { email, firstName, lastName, position } = validatedFields.data;
+  const { email, firstName, lastName, position, skills } = validatedFields.data;
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
@@ -45,6 +46,7 @@ export async function createEmployee(
       firstName,
       lastName,
       position,
+      skills,
       role: "user",
       // Bez hasła konto nie pozwala się zalogować; pracownik ustawi je przez
       // link z zaproszenia. Status "approved" sprawia, że od razu widnieje na
@@ -73,17 +75,18 @@ export async function updateEmployee(
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
     position: formData.get("position"),
+    skills: formData.getAll("skills"),
   });
 
   if (!validatedFields.success) {
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { id, firstName, lastName, position } = validatedFields.data;
+  const { id, firstName, lastName, position, skills } = validatedFields.data;
 
   await prisma.user.update({
     where: { id },
-    data: { firstName, lastName, position },
+    data: { firstName, lastName, position, skills },
   });
 
   revalidatePath(EMPLOYEES_PATH);

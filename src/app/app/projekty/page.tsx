@@ -41,6 +41,7 @@ export default async function ProjectsPage({
       description: true,
       startDate: true,
       endDate: true,
+      budget: true,
       _count: { select: { attachments: true } },
       // isConflict jest już utrzymywany przez istniejącą logikę FTE — czytamy
       // flagę zamiast liczyć konflikt drugi raz. userId do policzenia osób.
@@ -54,6 +55,7 @@ export default async function ProjectsPage({
     description: p.description,
     startDate: p.startDate,
     endDate: p.endDate,
+    budget: p.budget != null ? Number(p.budget) : null,
     attachmentCount: p._count.attachments,
     assigneeCount: new Set(p.assignments.map((a) => a.userId)).size,
     hasConflict: p.assignments.some((a) => a.isConflict),

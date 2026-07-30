@@ -23,6 +23,7 @@ type Employee = {
   firstName: string;
   lastName: string;
   position: string | null;
+  skills: string[];
   status: "approved" | "inactive" | "pending";
 };
 
@@ -30,10 +31,12 @@ export function EmployeeRowActions({
   employee,
   isCurrentUser,
   isLastActive,
+  allSkills,
 }: {
   employee: Employee;
   isCurrentUser: boolean;
   isLastActive: boolean;
+  allSkills: string[];
 }) {
   // Powody, dla których nie wolno dezaktywować — te same, których broni akcja
   // serwerowa. Blokujemy je w UI, żeby zamiast wyjątku (crash overlay) pokazać
@@ -48,6 +51,7 @@ export function EmployeeRowActions({
       <EmployeeFormDialog
         mode="edit"
         employee={employee}
+        allSkills={allSkills}
         trigger={
           <Button variant="ghost" size="icon-sm" aria-label="Edytuj pracownika">
             <Pencil />

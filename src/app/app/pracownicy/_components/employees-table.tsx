@@ -16,6 +16,7 @@ type Employee = {
   firstName: string;
   lastName: string;
   position: string | null;
+  skills: string[];
   status: "approved" | "inactive" | "pending";
   monthlyFte: number;
 };
@@ -35,10 +36,12 @@ export function EmployeesTable({
   employees,
   currentUserId,
   approvedCount,
+  allSkills,
 }: {
   employees: Employee[];
   currentUserId: string;
   approvedCount: number;
+  allSkills: string[];
 }) {
   if (employees.length === 0) {
     return (
@@ -55,7 +58,7 @@ export function EmployeesTable({
           <TableRow>
             <TableHead>Imię i nazwisko</TableHead>
             <TableHead>Stanowisko</TableHead>
-            <TableHead>E-mail</TableHead>
+            <TableHead>Kompetencje</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Obciążenie</TableHead>
             <TableHead className="w-0">Akcje</TableHead>
@@ -68,7 +71,19 @@ export function EmployeesTable({
                 {employee.firstName} {employee.lastName}
               </TableCell>
               <TableCell>{employee.position ?? "—"}</TableCell>
-              <TableCell className="text-muted-foreground">{employee.email}</TableCell>
+              <TableCell>
+                {employee.skills.length === 0 ? (
+                  <span className="text-muted-foreground">—</span>
+                ) : (
+                  <div className="flex max-w-64 flex-wrap gap-1">
+                    {employee.skills.map((s) => (
+                      <Badge key={s} variant="outline" className="font-normal">
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </TableCell>
               <TableCell>
                 <Badge variant={statusMeta[employee.status].variant}>
                   {statusMeta[employee.status].label}
@@ -88,6 +103,7 @@ export function EmployeesTable({
                   employee={employee}
                   isCurrentUser={employee.id === currentUserId}
                   isLastActive={employee.status === "approved" && approvedCount <= 1}
+                  allSkills={allSkills}
                 />
               </TableCell>
             </TableRow>

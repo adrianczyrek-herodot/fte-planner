@@ -24,13 +24,14 @@ export async function createProject(
     description: formData.get("description"),
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
+    budget: formData.get("budget"),
   });
 
   if (!validatedFields.success) {
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { name, description, startDate, endDate } = validatedFields.data;
+  const { name, description, startDate, endDate, budget } = validatedFields.data;
 
   const project = await prisma.project.create({
     data: {
@@ -38,6 +39,7 @@ export async function createProject(
       description: description || null,
       startDate,
       endDate,
+      budget,
     },
   });
 
@@ -61,13 +63,14 @@ export async function updateProject(
     description: formData.get("description"),
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
+    budget: formData.get("budget"),
   });
 
   if (!validatedFields.success) {
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { name, description, startDate, endDate } = validatedFields.data;
+  const { name, description, startDate, endDate, budget } = validatedFields.data;
 
   await prisma.project.update({
     where: { id },
@@ -76,6 +79,7 @@ export async function updateProject(
       description: description || null,
       startDate,
       endDate,
+      budget,
     },
   });
 
