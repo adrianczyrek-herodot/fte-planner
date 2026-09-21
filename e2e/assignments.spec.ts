@@ -27,7 +27,12 @@ test.afterAll(async () => {
 async function addRole(page: Page, position: string) {
   await page.getByRole("button", { name: "Dodaj rolę" }).click();
   const dlg = page.getByRole("dialog");
-  await dlg.getByLabel("Stanowisko / rola").fill(position);
+  // Stanowisko pochodzi ze słownika; dopisujemy je na miejscu, żeby test nie
+  // zależał od zawartości słownika (i żeby przejść ścieżkę „szybkie dodanie").
+  await dlg.getByRole("button", { name: "Dodaj nowe stanowisko do słownika" }).click();
+  await dlg.getByLabel("Nazwa nowego stanowiska").fill(position);
+  await dlg.getByRole("button", { name: "Dodaj", exact: true }).click();
+  await expect(dlg.getByRole("combobox")).toContainText(position);
   await dlg.getByLabel("Od (miesiąc)").fill(M);
   await dlg.getByLabel("Do (miesiąc)").fill(M);
   await dlg.getByLabel("Wymagane FTE").fill("1");
@@ -52,8 +57,11 @@ test("definicja roli + przypisanie osoby → obsada widoczna", async ({ page }) 
   await addRole(page, "Frontend");
   await assignLast(page, "0.7");
 
-  await expect(page.getByText(employeeName)).toBeVisible();
-  await expect(page.getByText("0.7 FTE")).toBeVisible();
+  // Osoba widnieje teraz w dwóch miejscach: w obsadzie roli i w zestawieniu
+  // kosztów, więc celujemy wprost w sekcję zapotrzebowania na role.
+  const obsada = page.locator('[data-section="staffing"]');
+  await expect(obsada.getByText(employeeName)).toBeVisible();
+  await expect(obsada.getByText("0.7 FTE")).toBeVisible();
 });
 
 test("2×0.7 na nakładających się rolach → konflikt widoczny na liście projektów", async ({

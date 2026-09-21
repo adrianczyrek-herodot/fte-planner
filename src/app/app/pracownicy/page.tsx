@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/actions/auth";
+import { requireCapability } from "@/app/actions/auth";
 import { sumFte } from "@/lib/fte";
 import { SearchInput } from "./_components/search-input";
 import { SkillFilter } from "./_components/skill-filter";
@@ -22,7 +22,7 @@ export default async function EmployeesPage({
   // Layouts don't reliably re-render on client-side navigation (Next.js
   // partial rendering), so re-check auth here too rather than relying
   // solely on the shared /app layout.
-  const session = await requireAdmin();
+  const { session } = await requireCapability("manageEmployees");
 
   const { q, skill } = await searchParams;
   const query = q?.trim() ?? "";
@@ -31,7 +31,7 @@ export default async function EmployeesPage({
   // Bieżący miesiąc w formacie "YYYY-MM" — do kolumny "Obciążenie".
   const currentMonth = new Date().toISOString().slice(0, 7);
 
-  const [employees, approvedCount, loads, skillRows] = await Promise.all([
+  const [employees, approvedCount, loads, skillRows, positions] = await Promise.all([
     prisma.user.findMany({
       where: {
         status: { in: ["pending", "approved", "inactive"] },
@@ -43,7 +43,7 @@ export default async function EmployeesPage({
               ],
             }
           : {}),
-        ...(skillFilter ? { skills: { has: skillFilter } } : {}),
+        ...(skillFilter ? { skills: { some: { name: skillFilter } } } : {}),
       },
       // Oczekujący na zatwierdzenie trafiają na górę (kolejność enuma:
       // pending → approved → inactive), potem alfabetycznie.
@@ -53,10 +53,12 @@ export default async function EmployeesPage({
         email: true,
         firstName: true,
         lastName: true,
-        position: true,
-        skills: true,
         role: true,
         status: true,
+        passwordHash: true,
+        positionId: true,
+        position: { select: { name: true } },
+        skills: { select: { id: true, name: true }, orderBy: { name: "asc" } },
       },
     }),
     // Liczone niezależnie od filtra wyszukiwania — służy do zablokowania
@@ -70,13 +72,15 @@ export default async function EmployeesPage({
       },
       select: { userId: true, fte: true },
     }),
-    // Wszystkie kompetencje (do filtra i podpowiedzi w formularzu).
-    prisma.user.findMany({ select: { skills: true } }),
+    // Słowniki: kompetencje do filtra i formularza, stanowiska do formularza.
+    prisma.skill.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.position.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
-  const allSkills = Array.from(
-    new Set(skillRows.flatMap((r) => r.skills))
-  ).sort((a, b) => a.localeCompare(b, "pl"));
+  const allSkills = skillRows.map((s) => s.name);
 
   const ftesByUser = new Map<string, number[]>();
   for (const a of loads) {
@@ -88,7 +92,16 @@ export default async function EmployeesPage({
     [...ftesByUser].map(([userId, ftes]) => [userId, sumFte(ftes)])
   );
   const employeesWithLoad = employees.map((e) => ({
-    ...e,
+    id: e.id,
+    email: e.email,
+    firstName: e.firstName,
+    lastName: e.lastName,
+    role: e.role,
+    status: e.status,
+    hasPassword: e.passwordHash !== null,
+    positionId: e.positionId,
+    positionName: e.position?.name ?? null,
+    skills: e.skills,
     monthlyFte: loadByUser.get(e.id) ?? 0,
   }));
 
@@ -103,7 +116,8 @@ export default async function EmployeesPage({
         </div>
         <EmployeeFormDialog
           mode="create"
-          allSkills={allSkills}
+          positions={positions}
+          skills={skillRows}
           trigger={<Button>Dodaj pracownika</Button>}
         />
       </div>
@@ -121,7 +135,8 @@ export default async function EmployeesPage({
         employees={employeesWithLoad}
         currentUserId={session.user.id}
         approvedCount={approvedCount}
-        allSkills={allSkills}
+        positions={positions}
+        skills={skillRows}
       />
     </div>
   );

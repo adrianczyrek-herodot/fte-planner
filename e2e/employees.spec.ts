@@ -16,7 +16,9 @@ async function addEmployee(
   await dialog.getByLabel("E-mail", { exact: true }).fill(email);
   await dialog.getByLabel("Imię", { exact: true }).fill(firstName);
   await dialog.getByLabel("Nazwisko", { exact: true }).fill(lastName);
-  await dialog.getByLabel("Stanowisko", { exact: true }).fill("Tester");
+  // Stanowisko pochodzi teraz ze słownika — wybieramy pierwszą pozycję z listy.
+  await dialog.getByLabel("Stanowisko", { exact: true }).click();
+  await page.getByRole("option").nth(1).click();
   await dialog.getByRole("button", { name: "Dodaj pracownika" }).click();
   await expect(dialog).toBeHidden();
 }

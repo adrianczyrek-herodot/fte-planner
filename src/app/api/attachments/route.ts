@@ -25,7 +25,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const result = await get(pathname, { access: "private" });
+  // Magazyn plików może być nieskonfigurowany lub niedostępny — zwróć błąd
+  // JSON-em, zamiast pozwolić wyjątkowi wyjść jako 500 bez treści.
+  let result;
+  try {
+    result = await get(pathname, { access: "private" });
+  } catch (error) {
+    console.error("[attachments] blob get failed", error);
+    return NextResponse.json({ error: "Storage unavailable" }, { status: 502 });
+  }
+
   if (!result || result.statusCode !== 200) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

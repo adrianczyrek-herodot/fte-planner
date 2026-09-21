@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/actions/auth";
+import { requireCapability } from "@/app/actions/auth";
 import { createPasswordResetToken } from "@/lib/tokens";
 import { sendPasswordSetupEmail } from "@/lib/mail";
 import {
@@ -19,14 +19,14 @@ export async function createEmployee(
   _state: EmployeeFormState,
   formData: FormData
 ): Promise<EmployeeFormState> {
-  await requireAdmin();
+  await requireCapability("manageEmployees");
 
   const validatedFields = EmployeeCreateSchema.safeParse({
     email: formData.get("email"),
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
-    position: formData.get("position"),
-    skills: formData.getAll("skills"),
+    positionId: formData.get("positionId"),
+    skillIds: formData.getAll("skillIds"),
     role: formData.get("role"),
   });
 
@@ -34,7 +34,8 @@ export async function createEmployee(
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { email, firstName, lastName, position, skills, role } = validatedFields.data;
+  const { email, firstName, lastName, positionId, skillIds, role } =
+    validatedFields.data;
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
@@ -46,8 +47,8 @@ export async function createEmployee(
       email,
       firstName,
       lastName,
-      position,
-      skills,
+      positionId,
+      skills: { connect: skillIds.map((id) => ({ id })) },
       role,
       // Bez hasła konto nie pozwala się zalogować; pracownik ustawi je przez
       // link z zaproszenia. Status "approved" sprawia, że od razu widnieje na
@@ -69,14 +70,14 @@ export async function updateEmployee(
   _state: EmployeeFormState,
   formData: FormData
 ): Promise<EmployeeFormState> {
-  const session = await requireAdmin();
+  const { session } = await requireCapability("manageEmployees");
 
   const validatedFields = EmployeeUpdateSchema.safeParse({
     id: formData.get("id"),
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
-    position: formData.get("position"),
-    skills: formData.getAll("skills"),
+    positionId: formData.get("positionId"),
+    skillIds: formData.getAll("skillIds"),
     role: formData.get("role"),
   });
 
@@ -84,15 +85,17 @@ export async function updateEmployee(
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { id, firstName, lastName, position, skills, role } = validatedFields.data;
+  const { id, firstName, lastName, positionId, skillIds, role } =
+    validatedFields.data;
 
   await prisma.user.update({
     where: { id },
     data: {
       firstName,
       lastName,
-      position,
-      skills,
+      positionId,
+      // `set` zastępuje cały zestaw kompetencji tym z formularza.
+      skills: { set: skillIds.map((id) => ({ id })) },
       // Nie pozwól zmienić własnej roli (ochrona przed samo-odebraniem admina).
       ...(id === session.user.id ? {} : { role }),
     },
@@ -103,7 +106,7 @@ export async function updateEmployee(
 }
 
 export async function setEmployeeStatus(formData: FormData) {
-  const session = await requireAdmin();
+  const { session } = await requireCapability("manageEmployees");
 
   const id = formData.get("id");
   const status = formData.get("status");

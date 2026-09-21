@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
-import { requireManager } from "@/app/actions/auth";
+import { requireCapability } from "@/app/actions/auth";
 import { recomputeUserConflicts } from "@/lib/assignments-core";
 import {
   AssignmentFormState,
@@ -17,6 +17,19 @@ function projectPath(projectId: string) {
   return `/app/projekty/${projectId}`;
 }
 
+/**
+ * Zmiana obsady dotyka nie tylko strony projektu: lista projektów pokazuje
+ * liczbę przypisanych i ikonę konfliktu, oś czasu rozwija się do osób, a widok
+ * Zasobów liczy obłożenie. Odświeżamy je razem — inaczej lista potrafi pokazać
+ * nieaktualny stan.
+ */
+function revalidateStaffing(projectId: string) {
+  revalidatePath(projectPath(projectId));
+  revalidatePath("/app/projekty");
+  revalidatePath("/app/timeline");
+  revalidatePath("/app/zasoby");
+}
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // --- Zapotrzebowanie na rolę ------------------------------------------------
@@ -26,27 +39,29 @@ export async function createProjectRole(
   _state: ProjectRoleFormState,
   formData: FormData
 ): Promise<ProjectRoleFormState> {
-  await requireManager();
+  await requireCapability("manageStaffing");
 
   const v = ProjectRoleSchema.safeParse({
-    position: formData.get("position"),
+    positionId: formData.get("positionId"),
     startMonth: formData.get("startMonth"),
     endMonth: formData.get("endMonth"),
     requiredFte: formData.get("requiredFte"),
+    requiredPeople: formData.get("requiredPeople"),
   });
   if (!v.success) return { errors: z.flattenError(v.error).fieldErrors };
 
   await prisma.projectRole.create({
     data: {
       projectId,
-      position: v.data.position,
+      positionId: v.data.positionId,
       startMonth: v.data.startMonth,
       endMonth: v.data.endMonth,
       requiredFte: round2(v.data.requiredFte),
+      requiredPeople: v.data.requiredPeople,
     },
   });
 
-  revalidatePath(projectPath(projectId));
+  revalidateStaffing(projectId);
   return { success: true };
 }
 
@@ -54,36 +69,38 @@ export async function updateProjectRole(
   _state: ProjectRoleFormState,
   formData: FormData
 ): Promise<ProjectRoleFormState> {
-  await requireManager();
+  await requireCapability("manageStaffing");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { message: "Nieprawidłowe dane." };
 
   const v = ProjectRoleSchema.safeParse({
-    position: formData.get("position"),
+    positionId: formData.get("positionId"),
     startMonth: formData.get("startMonth"),
     endMonth: formData.get("endMonth"),
     requiredFte: formData.get("requiredFte"),
+    requiredPeople: formData.get("requiredPeople"),
   });
   if (!v.success) return { errors: z.flattenError(v.error).fieldErrors };
 
   const role = await prisma.projectRole.update({
     where: { id },
     data: {
-      position: v.data.position,
+      positionId: v.data.positionId,
       startMonth: v.data.startMonth,
       endMonth: v.data.endMonth,
       requiredFte: round2(v.data.requiredFte),
+      requiredPeople: v.data.requiredPeople,
     },
     select: { projectId: true },
   });
 
-  revalidatePath(projectPath(role.projectId));
+  revalidateStaffing(role.projectId);
   return { success: true };
 }
 
 export async function deleteProjectRole(formData: FormData) {
-  await requireManager();
+  await requireCapability("manageStaffing");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;
@@ -100,7 +117,7 @@ export async function deleteProjectRole(formData: FormData) {
   await prisma.projectRole.delete({ where: { id } });
   for (const userId of affectedUsers) await recomputeUserConflicts(prisma, userId);
 
-  revalidatePath(projectPath(role.projectId));
+  revalidateStaffing(role.projectId);
 }
 
 // --- Obsada roli ------------------------------------------------------------
@@ -111,7 +128,7 @@ export async function createOrUpdateAssignment(
   _state: AssignmentFormState,
   formData: FormData
 ): Promise<AssignmentFormState> {
-  await requireManager();
+  await requireCapability("manageStaffing");
 
   const v = AssignmentSchema.safeParse({
     userId: formData.get("userId"),
@@ -150,12 +167,12 @@ export async function createOrUpdateAssignment(
 
   for (const uid of affected) await recomputeUserConflicts(prisma, uid);
 
-  revalidatePath(projectPath(role.projectId));
+  revalidateStaffing(role.projectId);
   return { success: true };
 }
 
 export async function deleteAssignment(formData: FormData) {
-  await requireManager();
+  await requireCapability("manageStaffing");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;
@@ -166,5 +183,5 @@ export async function deleteAssignment(formData: FormData) {
   });
 
   await recomputeUserConflicts(prisma, deleted.userId);
-  revalidatePath(projectPath(deleted.projectRole.projectId));
+  revalidateStaffing(deleted.projectRole.projectId);
 }

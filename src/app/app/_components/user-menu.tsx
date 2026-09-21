@@ -23,6 +23,7 @@ function initials(name: string) {
 }
 
 const roleLabel = {
+  finance: "administracja",
   admin: "Administrator",
   manager: "Menedżer",
   user: "Użytkownik",
@@ -35,7 +36,7 @@ export function UserMenu({
 }: {
   name: string;
   email: string;
-  role: "user" | "manager" | "admin";
+  role: "user" | "manager" | "finance" | "admin";
 }) {
   return (
     <DropdownMenu>

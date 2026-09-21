@@ -53,6 +53,32 @@ export function formatDayLabel(dayIdx: number): string {
   }).format(dateFromDayIndex(dayIdx));
 }
 
+/** Krótka data dnia bez roku, np. "13 lip". */
+export function formatDayShort(dayIdx: number): string {
+  return new Intl.DateTimeFormat("pl-PL", {
+    day: "numeric",
+    month: "short",
+  }).format(dateFromDayIndex(dayIdx));
+}
+
+/**
+ * Zakres dat projektu do wyświetlenia obok jego nazwy. Rok pokazujemy raz, gdy
+ * początek i koniec wypadają w tym samym roku ("1 lip – 3 lis 2026"), a przy
+ * przełomie roku przy obu datach ("20 gru 2026 – 5 sty 2027").
+ */
+export function formatDayRange(startDay: number, endDay: number): string {
+  const start = dateFromDayIndex(startDay);
+  const end = dateFromDayIndex(endDay);
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  const from = sameYear ? formatDayShort(startDay) : formatDayLabel(startDay);
+  return `${from} – ${formatDayLabel(endDay)}`;
+}
+
+/** Liczba dni zakresu, włącznie z dniem początkowym i końcowym. */
+export function dayCount(startDay: number, endDay: number): number {
+  return endDay - startDay + 1;
+}
+
 /**
  * Zakres osi (w indeksach dni) obejmujący podane dni + dziś, dosunięty do pełnych
  * miesięcy i rozszerzony do minimalnej liczby dni (żeby był scroll poziomy).
@@ -67,7 +93,7 @@ export function timelineRange(
   const maxDate = dateFromDayIndex(Math.max(...all));
 
   // Dosuń do 1. dnia miesiąca (start) i ostatniego dnia miesiąca (koniec).
-  let start = dayIndex(
+  const start = dayIndex(
     new Date(Date.UTC(minDate.getUTCFullYear(), minDate.getUTCMonth(), 1))
   );
   let end = dayIndex(

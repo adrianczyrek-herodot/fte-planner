@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  dayCount,
   dayIndex,
+  formatDayRange,
   monthSegments,
   parseYmd,
   timelineRange,
@@ -16,6 +18,23 @@ describe("ymd / parseYmd / dayIndex", () => {
     expect(ymd(parseYmd("2026-07-13"))).toBe("2026-07-13");
     // różnica dni = różnica indeksów
     expect(dayIndex(d("2026-07-13")) - dayIndex(d("2026-07-01"))).toBe(12);
+  });
+});
+
+describe("formatDayRange / dayCount", () => {
+  it("w tym samym roku pokazuje rok tylko raz", () => {
+    const range = formatDayRange(dayIndex(d("2026-07-01")), dayIndex(d("2026-11-03")));
+    expect(range).toBe("1 lip – 3 lis 2026");
+  });
+
+  it("przy przełomie roku pokazuje rok przy obu datach", () => {
+    const range = formatDayRange(dayIndex(d("2026-12-20")), dayIndex(d("2027-01-05")));
+    expect(range).toBe("20 gru 2026 – 5 sty 2027");
+  });
+
+  it("liczy dni włącznie z początkiem i końcem", () => {
+    expect(dayCount(dayIndex(d("2026-07-01")), dayIndex(d("2026-07-01")))).toBe(1);
+    expect(dayCount(dayIndex(d("2026-07-01")), dayIndex(d("2026-07-31")))).toBe(31);
   });
 });
 

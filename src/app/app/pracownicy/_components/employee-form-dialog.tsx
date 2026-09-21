@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TagsInput } from "@/components/tags-input";
+import { DictChips } from "@/components/dict-chips";
 import {
   Dialog,
   DialogContent,
@@ -31,21 +31,29 @@ type Employee = {
   email: string;
   firstName: string;
   lastName: string;
-  position: string | null;
-  skills: string[];
-  role: "user" | "manager" | "admin";
+  positionId: string | null;
+  skills: { id: string; name: string }[];
+  role: "user" | "manager" | "finance" | "admin";
 };
 
 type Props = (
   | { mode: "create"; trigger: React.ReactNode; employee?: undefined }
   | { mode: "edit"; trigger: React.ReactNode; employee: Employee }
-) & { allSkills?: string[] };
+) & {
+  positions: { id: string; name: string }[];
+  skills: { id: string; name: string }[];
+};
+
+// Radix Select nie przyjmuje pustej wartości, więc „brak stanowiska"
+// reprezentujemy sentinelem, który walidacja zamienia na null.
+const NO_POSITION = "__none__";
 
 export function EmployeeFormDialog({
   mode,
   trigger,
   employee,
-  allSkills = [],
+  positions,
+  skills,
 }: Props) {
   const [open, setOpen] = useState(false);
   const action = mode === "create" ? createEmployee : updateEmployee;
@@ -118,26 +126,35 @@ export function EmployeeFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="position">Stanowisko</Label>
-            <Input
-              id="position"
-              name="position"
-              placeholder="np. Frontend Developer"
-              defaultValue={employee?.position ?? ""}
-              required
-            />
-            {state?.errors?.position && (
-              <p className="text-sm text-destructive">{state.errors.position[0]}</p>
+            <Label htmlFor="positionId">Stanowisko</Label>
+            <Select name="positionId" defaultValue={employee?.positionId ?? NO_POSITION}>
+              <SelectTrigger id="positionId" className="w-full">
+                <SelectValue placeholder="Wybierz stanowisko" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_POSITION}>— brak —</SelectItem>
+                {positions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Lista pochodzi ze słownika w Ustawieniach.
+            </p>
+            {state?.errors?.positionId && (
+              <p className="text-sm text-destructive">{state.errors.positionId[0]}</p>
             )}
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="skills">Kompetencje / narzędzia</Label>
-            <TagsInput
-              name="skills"
-              defaultValue={employee?.skills ?? []}
-              suggestions={allSkills}
-              placeholder="np. React, Figma, SQL — Enter dodaje"
+            <Label>Kompetencje</Label>
+            <DictChips
+              name="skillIds"
+              items={skills}
+              defaultSelected={(employee?.skills ?? []).map((s) => s.id)}
+              emptyHint="Słownik kompetencji jest pusty — dodaj pozycje w Ustawieniach."
             />
           </div>
 
@@ -150,6 +167,9 @@ export function EmployeeFormDialog({
               <SelectContent>
                 <SelectItem value="user">Użytkownik (ograniczony dostęp)</SelectItem>
                 <SelectItem value="manager">Menedżer (projekty i zasoby)</SelectItem>
+                <SelectItem value="finance">
+                  Administracja (słowniki i stawki)
+                </SelectItem>
                 <SelectItem value="admin">Administrator (pełny dostęp)</SelectItem>
               </SelectContent>
             </Select>

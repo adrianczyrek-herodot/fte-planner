@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { requireManager } from "@/app/actions/auth";
+import { requireCapability } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { ProjectFormDialog } from "./_components/project-form-dialog";
 import { ProjectsTable } from "./_components/projects-table";
@@ -20,7 +20,7 @@ export default async function ProjectsPage({
   // Layouts don't reliably re-render on client-side navigation (Next.js
   // partial rendering), so re-check auth here too rather than relying
   // solely on the shared /app layout.
-  await requireManager();
+  await requireCapability("viewProjects");
 
   const { status } = await searchParams;
   const now = new Date();
@@ -31,6 +31,11 @@ export default async function ProjectsPage({
       : status === "overdue"
         ? { endDate: { lt: now } }
         : {};
+
+  const positions = await prisma.position.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   const projectsRaw = await prisma.project.findMany({
     where,
@@ -74,7 +79,11 @@ export default async function ProjectsPage({
             Zarządzaj projektami i ich terminami.
           </p>
         </div>
-        <ProjectFormDialog mode="create" trigger={<Button>Dodaj projekt</Button>} />
+        <ProjectFormDialog
+          mode="create"
+          positions={positions}
+          trigger={<Button>Dodaj projekt</Button>}
+        />
       </div>
 
       <Suspense fallback={null}>

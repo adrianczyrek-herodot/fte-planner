@@ -10,6 +10,7 @@ import {
 
 import { getCurrentRole } from "@/app/actions/auth";
 import { prisma } from "@/lib/prisma";
+import { roleLabels } from "@/lib/permissions";
 import { ym, formatMonthLabel } from "@/lib/timeline";
 import { isOverAllocated, sumFte } from "@/lib/fte";
 import { formatDate, getProjectDueStatus, projectStatusMeta } from "@/lib/project-status";
@@ -42,7 +43,10 @@ export default async function AppDashboardPage() {
         fte: true,
         isConflict: true,
         projectRole: {
-          select: { position: true, project: { select: { id: true, name: true } } },
+          select: {
+            position: { select: { name: true } },
+            project: { select: { id: true, name: true } },
+          },
         },
       },
     });
@@ -95,7 +99,7 @@ export default async function AppDashboardPage() {
                         {a.projectRole.project.name}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {a.projectRole.position} · {a.startMonth} – {a.endMonth}
+                        {a.projectRole.position.name} · {a.startMonth} – {a.endMonth}
                       </div>
                     </div>
                     <Badge
@@ -224,7 +228,7 @@ export default async function AppDashboardPage() {
             <CardDescription>{user.email}</CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Rola: {role === "admin" ? "administrator" : "menedżer"}
+            Rola: {roleLabels[role]}
           </CardContent>
         </Card>
       </div>

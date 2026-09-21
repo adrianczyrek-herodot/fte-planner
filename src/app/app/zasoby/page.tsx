@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { requireManager } from "@/app/actions/auth";
+import { requireCapability } from "@/app/actions/auth";
 import { isOverAllocated, sumFte } from "@/lib/fte";
 import { monthsBetween } from "@/lib/staffing";
 import { formatMonthLabel, ym } from "@/lib/timeline";
@@ -20,7 +21,7 @@ function monthsForRange(range: string): string[] {
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth();
 
-  let startYear = y;
+  const startYear = y;
   let startMonth = m;
   let count = 6;
 
@@ -52,7 +53,7 @@ export default async function ZasobyPage({
 }: {
   searchParams: Promise<{ range?: string; status?: string; skill?: string }>;
 }) {
-  await requireManager();
+  await requireCapability("viewResources");
 
   const sp = await searchParams;
   const range = sp.range ?? "quarter";
@@ -65,10 +66,16 @@ export default async function ZasobyPage({
     prisma.user.findMany({
       where: {
         status: "approved",
-        ...(skill ? { skills: { has: skill } } : {}),
+        ...(skill ? { skills: { some: { name: skill } } } : {}),
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-      select: { id: true, firstName: true, lastName: true, position: true, skills: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        position: { select: { name: true } },
+        skills: { select: { name: true }, orderBy: { name: "asc" } },
+      },
     }),
     // Przydziały nachodzące na wybrany zakres (rozbijamy je na miesiące).
     prisma.assignment.findMany({
@@ -78,7 +85,7 @@ export default async function ZasobyPage({
       },
       select: { userId: true, startMonth: true, endMonth: true, fte: true },
     }),
-    prisma.user.findMany({ select: { skills: true } }),
+    prisma.skill.findMany({ orderBy: { name: "asc" }, select: { name: true } }),
   ]);
 
   const monthSet = new Set(months);
@@ -97,7 +104,11 @@ export default async function ZasobyPage({
     .map((e) => {
       const cells = months.map((m) => sumFte(loadMap.get(`${e.id}:${m}`) ?? []));
       return {
-        ...e,
+        id: e.id,
+        firstName: e.firstName,
+        lastName: e.lastName,
+        positionName: e.position?.name ?? null,
+        skillNames: e.skills.map((s) => s.name),
         cells,
         hasGap: cells.some((v) => v < 1),
         hasOver: cells.some((v) => isOverAllocated(v)),
@@ -107,9 +118,7 @@ export default async function ZasobyPage({
       status === "available" ? r.hasGap : status === "over" ? r.hasOver : true
     );
 
-  const allSkills = Array.from(new Set(skillRows.flatMap((r) => r.skills))).sort(
-    (a, b) => a.localeCompare(b, "pl")
-  );
+  const allSkills = skillRows.map((s) => s.name);
 
   return (
     <div className="flex flex-col gap-4">
@@ -152,11 +161,16 @@ export default async function ZasobyPage({
                 <tr key={r.id} className="border-b last:border-0">
                   <td className="sticky left-0 z-10 bg-card px-4 py-2">
                     <div className="font-medium">
-                      {r.firstName} {r.lastName}
+                      <Link
+                        href={`/app/pracownicy/${r.id}`}
+                        className="hover:underline"
+                      >
+                        {r.firstName} {r.lastName}
+                      </Link>
                     </div>
                     <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                      <span>{r.position ?? "—"}</span>
-                      {r.skills.slice(0, 3).map((s) => (
+                      <span>{r.positionName ?? "—"}</span>
+                      {r.skillNames.slice(0, 3).map((s) => (
                         <Badge key={s} variant="outline" className="font-normal">
                           {s}
                         </Badge>

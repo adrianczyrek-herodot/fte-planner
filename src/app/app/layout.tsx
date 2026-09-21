@@ -8,7 +8,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { session, role } = await getCurrentRole();
+  const { session, role, capabilities } = await getCurrentRole();
   const user = session.user;
 
   return (
@@ -17,7 +17,7 @@ export default async function AppLayout({
         <div className="flex h-14 items-center border-b px-4">
           <Brand className="text-sm" />
         </div>
-        <SidebarNav role={role} />
+        <SidebarNav capabilities={capabilities} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

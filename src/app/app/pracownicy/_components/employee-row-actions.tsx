@@ -17,14 +17,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmployeeFormDialog } from "./employee-form-dialog";
 
+type DictItem = { id: string; name: string };
+
 type Employee = {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
-  position: string | null;
-  skills: string[];
-  role: "user" | "manager" | "admin";
+  positionId: string | null;
+  skills: DictItem[];
+  role: "user" | "manager" | "finance" | "admin";
   status: "approved" | "inactive" | "pending";
 };
 
@@ -32,12 +34,14 @@ export function EmployeeRowActions({
   employee,
   isCurrentUser,
   isLastActive,
-  allSkills,
+  positions,
+  skills,
 }: {
   employee: Employee;
   isCurrentUser: boolean;
   isLastActive: boolean;
-  allSkills: string[];
+  positions: DictItem[];
+  skills: DictItem[];
 }) {
   // Powody, dla których nie wolno dezaktywować — te same, których broni akcja
   // serwerowa. Blokujemy je w UI, żeby zamiast wyjątku (crash overlay) pokazać
@@ -52,7 +56,8 @@ export function EmployeeRowActions({
       <EmployeeFormDialog
         mode="edit"
         employee={employee}
-        allSkills={allSkills}
+        positions={positions}
+        skills={skills}
         trigger={
           <Button variant="ghost" size="icon-sm" aria-label="Edytuj pracownika">
             <Pencil />

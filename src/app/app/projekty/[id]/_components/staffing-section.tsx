@@ -1,4 +1,12 @@
-import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+"use client";
+
+// Komponent kliencki celowo, mimo że sam nie trzyma stanu. Gdy był serwerowy,
+// elementy `trigger` (przyciski dialogów) przekraczały granicę RSC i trafiały
+// do Radix jako nierozwiązane, leniwe referencje — przy części twardych
+// ładowań Slot nie potrafił się na nich osadzić i strona kończyła się błędem
+// "Primitive.button failed to slot onto its children". Trzymanie całego
+// poddrzewa po stronie klienta usuwa tę granicę.
+import { Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
 
 import { deleteAssignment, deleteProjectRole } from "@/app/actions/staffing";
 import { formatMonthLabel } from "@/lib/timeline";
@@ -18,17 +26,47 @@ type Assignment = {
   isConflict: boolean;
 };
 
-type Coverage = { month: string; required: number; assigned: number; gap: number };
+type Coverage = {
+  month: string;
+  required: number;
+  assigned: number;
+  gap: number;
+  surplus: number;
+};
 
 type Role = {
   id: string;
   position: string;
   startMonth: string;
   endMonth: string;
+  positionId: string;
   requiredFte: string;
-  hasGap: boolean;
+  requiredPeople: string;
+  people: { required: number | null; assigned: number; status: "unset" | "fewer" | "exact" | "more" };
   coverage: Coverage[];
+  /** Pokrycie całego okresu roli w procentach. */
+  percent: number;
+  status: "gap" | "exact" | "surplus";
+  /** Oba mogą być prawdą naraz: dziura w jednym miesiącu, nadmiar w innym. */
+  hasGap: boolean;
+  hasSurplus: boolean;
   assignments: Assignment[];
+};
+
+// Plakietka pokrycia: stan + procent, bo sam procent nie wystarcza. Rola
+// obsadzona 1.5 / 0 / 1.5 w trzech miesiącach ma 100% i jednocześnie dziurę.
+const statusMeta = {
+  gap: { label: "Niedobór", variant: "destructive" as const },
+  exact: { label: "Pokryte", variant: "secondary" as const },
+  surplus: { label: "Nadmiar", variant: "warning" as const },
+};
+
+// Liczba osób jest pilnowana obok FTE: 2.0 FTE można obsadzić dwiema osobami
+// na całość albo czterema na pół etatu — to nie to samo zapotrzebowanie.
+const peopleMeta = {
+  fewer: { variant: "destructive" as const, hint: "za mało osób" },
+  exact: { variant: "secondary" as const, hint: "liczba osób zgodna" },
+  more: { variant: "warning" as const, hint: "więcej osób niż zaplanowano" },
 };
 
 type Employee = {
@@ -44,18 +82,21 @@ export function StaffingSection({
   projectId,
   roles,
   employees,
+  positions,
 }: {
   projectId: string;
   roles: Role[];
   employees: Employee[];
+  positions: { id: string; name: string }[];
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div data-section="staffing" className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold">Zapotrzebowanie na role</h2>
         <RoleFormDialog
           mode="create"
           projectId={projectId}
+          positions={positions}
           trigger={
             <Button size="sm">
               <Plus />
@@ -79,19 +120,47 @@ export function StaffingSection({
                   <span className="text-sm text-muted-foreground">
                     {role.startMonth} – {role.endMonth} · {fmt(role.requiredFte)} FTE
                   </span>
-                  <Badge variant={role.hasGap ? "destructive" : "secondary"}>
-                    {role.hasGap ? "Niedobór" : "Obsadzone"}
+                  <Badge
+                    variant={statusMeta[role.status].variant}
+                    title={`Pokrycie całego okresu roli: ${role.percent}%`}
+                  >
+                    {statusMeta[role.status].label}
+                    <span className="tabular-nums"> · {role.percent}%</span>
                   </Badge>
+                  {role.people.status !== "unset" && (
+                    <Badge
+                      variant={peopleMeta[role.people.status].variant}
+                      title={`Osoby na roli: ${peopleMeta[role.people.status].hint}`}
+                    >
+                      <Users className="size-3" />
+                      <span className="tabular-nums">
+                        {role.people.assigned}/{role.people.required}
+                      </span>
+                    </Badge>
+                  )}
+                  {role.people.status === "unset" && role.people.assigned > 0 && (
+                    <Badge variant="outline" title="Nie zadeklarowano liczby osób">
+                      <Users className="size-3" />
+                      <span className="tabular-nums">{role.people.assigned}</span>
+                    </Badge>
+                  )}
+                  {role.hasGap && role.hasSurplus && (
+                    <span className="text-xs text-muted-foreground">
+                      niedobór i nadmiar w różnych miesiącach
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <RoleFormDialog
                     mode="edit"
+                    positions={positions}
                     role={{
                       id: role.id,
-                      position: role.position,
+                      positionId: role.positionId,
                       startMonth: role.startMonth,
                       endMonth: role.endMonth,
                       requiredFte: role.requiredFte,
+                      requiredPeople: role.requiredPeople,
                     }}
                     trigger={
                       <Button variant="ghost" size="icon-sm" aria-label="Edytuj rolę">
@@ -117,12 +186,20 @@ export function StaffingSection({
                 {role.coverage.map((c) => (
                   <div
                     key={c.month}
-                    title={`${formatMonthLabel(c.month)}: obsada ${fmt(c.assigned)} / wymagane ${fmt(c.required)}`}
+                    title={[
+                      `${formatMonthLabel(c.month)}: obsada ${fmt(c.assigned)} / wymagane ${fmt(c.required)}`,
+                      c.gap > 0 ? `brakuje ${fmt(c.gap)} FTE` : null,
+                      c.surplus > 0 ? `nadmiar ${fmt(c.surplus)} FTE` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" — ")}
                     className={cn(
                       "flex min-w-16 shrink-0 flex-col items-center rounded-md px-2 py-1 text-xs",
                       c.gap > 0
                         ? "bg-destructive/10 text-destructive"
-                        : "bg-primary/10 text-primary"
+                        : c.surplus > 0
+                          ? "bg-amber-500/15 text-amber-700 dark:bg-amber-400/15 dark:text-amber-400"
+                          : "bg-primary/10 text-primary"
                     )}
                   >
                     <span className="capitalize text-muted-foreground">

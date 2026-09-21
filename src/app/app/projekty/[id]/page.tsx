@@ -2,8 +2,16 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
-import { requireManager } from "@/app/actions/auth";
+import { requireCapability } from "@/app/actions/auth";
+import { can } from "@/lib/permissions";
 import {
+  assignmentCostWithRates,
+  projectCostSummary,
+  toGrosze,
+  type AssignmentCostMonth,
+} from "@/lib/cost";
+import {
+  formatBudget,
   formatDate,
   getProjectDueStatus,
   projectStatusMeta,
@@ -17,11 +25,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { roleCoverage } from "@/lib/staffing";
+import { peopleCoverage, roleCoverageSummary } from "@/lib/staffing";
 import { ProjectFormDialog } from "../_components/project-form-dialog";
 import { AttachmentUploadForm } from "./_components/attachment-upload-form";
 import { AttachmentList } from "./_components/attachment-list";
 import { StaffingSection } from "./_components/staffing-section";
+import { ProjectLinks } from "./_components/project-links";
+import { ProjectCosts } from "./_components/project-costs";
 
 export async function generateMetadata({
   params,
@@ -44,7 +54,12 @@ export default async function ProjectDetailPage({
   // Layouts don't reliably re-render on client-side navigation (Next.js
   // partial rendering), so re-check auth here too rather than relying
   // solely on the shared /app layout.
-  await requireManager();
+  const { role } = await requireCapability("viewProjects");
+
+  // Dane kosztowe pobieramy TYLKO dla uprawnionych roli. Ukrycie ich w widoku
+  // nie wystarcza: cokolwiek trafi do zapytania, trafia też do payloadu strony
+  // i da się to odczytać w źródle.
+  const canSeeCosts = can(role, "viewRates");
 
   const { id } = await params;
 
@@ -55,6 +70,7 @@ export default async function ProjectDetailPage({
       roles: {
         orderBy: [{ startMonth: "asc" }, { createdAt: "asc" }],
         include: {
+          position: { select: { id: true, name: true } },
           assignments: {
             orderBy: [{ startMonth: "asc" }],
             include: { user: { select: { firstName: true, lastName: true } } },
@@ -70,11 +86,28 @@ export default async function ProjectDetailPage({
 
   const status = getProjectDueStatus(project.endDate);
 
-  const employees = await prisma.user.findMany({
+  const employeesRaw = await prisma.user.findMany({
     where: { status: "approved" },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    select: { id: true, firstName: true, lastName: true, skills: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      skills: { select: { name: true }, orderBy: { name: "asc" } },
+    },
   });
+
+  const positions = await prisma.position.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+
+  const employees = employeesRaw.map((e) => ({
+    id: e.id,
+    firstName: e.firstName,
+    lastName: e.lastName,
+    skills: e.skills.map((s) => s.name),
+  }));
 
   // Serializacja Decimal → number/string + pokrycie/luka obsady per miesiąc.
   const roles = project.roles.map((r) => {
@@ -87,7 +120,7 @@ export default async function ProjectDetailPage({
       isConflict: a.isConflict,
       name: `${a.user.firstName} ${a.user.lastName}`,
     }));
-    const coverage = roleCoverage(
+    const summary = roleCoverageSummary(
       {
         startMonth: r.startMonth,
         endMonth: r.endMonth,
@@ -102,15 +135,115 @@ export default async function ProjectDetailPage({
     );
     return {
       id: r.id,
-      position: r.position,
+      position: r.position.name,
+      positionId: r.positionId,
       startMonth: r.startMonth,
       endMonth: r.endMonth,
       requiredFte: r.requiredFte.toString(),
-      hasGap: coverage.some((c) => c.gap > 0),
-      coverage,
+      requiredPeople: r.requiredPeople != null ? String(r.requiredPeople) : "",
+      people: peopleCoverage(r.requiredPeople, r.assignments),
+      coverage: summary.months,
+      percent: summary.percent,
+      status: summary.status,
+      hasGap: summary.hasGap,
+      hasSurplus: summary.hasSurplus,
       assignments,
     };
   });
+
+  // --- Warstwa kosztowa (tylko dla uprawnionych) ---------------------------
+  let costs: {
+    people: Parameters<typeof ProjectCosts>[0]["people"];
+    items: Parameters<typeof ProjectCosts>[0]["items"];
+    summary: Parameters<typeof ProjectCosts>[0]["summary"];
+  } | null = null;
+
+  if (canSeeCosts) {
+    const assignments = project.roles.flatMap((r) =>
+      r.assignments.map((a) => ({
+        id: a.id,
+        userId: a.userId,
+        name: `${a.user.firstName} ${a.user.lastName}`,
+        rolePosition: r.position.name,
+        positionId: r.positionId,
+        startMonth: a.startMonth,
+        endMonth: a.endMonth,
+        fte: Number(a.fte),
+      }))
+    );
+
+    const [employeeRates, positionRates, costItems] = await Promise.all([
+      prisma.employeeRate.findMany({
+        where: { userId: { in: [...new Set(assignments.map((a) => a.userId))] } },
+        select: { userId: true, hourlyRate: true, validFrom: true },
+      }),
+      prisma.positionRate.findMany({
+        where: { positionId: { in: [...new Set(assignments.map((a) => a.positionId))] } },
+        select: { positionId: true, hourlyRate: true, validFrom: true },
+      }),
+      prisma.projectCostItem.findMany({
+        where: { projectId: project.id },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, category: true, amount: true },
+      }),
+    ]);
+
+    const ratesByUser = new Map<string, { grosze: number; validFrom: Date }[]>();
+    for (const r of employeeRates) {
+      const list = ratesByUser.get(r.userId) ?? [];
+      list.push({ grosze: toGrosze(Number(r.hourlyRate)), validFrom: r.validFrom });
+      ratesByUser.set(r.userId, list);
+    }
+    const ratesByPosition = new Map<string, { grosze: number; validFrom: Date }[]>();
+    for (const r of positionRates) {
+      const list = ratesByPosition.get(r.positionId) ?? [];
+      list.push({ grosze: toGrosze(Number(r.hourlyRate)), validFrom: r.validFrom });
+      ratesByPosition.set(r.positionId, list);
+    }
+
+    const allMonths: AssignmentCostMonth[] = [];
+    const people = assignments.map((a) => {
+      const months = assignmentCostWithRates(
+        a,
+        ratesByUser.get(a.userId) ?? [],
+        ratesByPosition.get(a.positionId) ?? []
+      );
+      allMonths.push(...months);
+      return {
+        assignmentId: a.id,
+        userId: a.userId,
+        name: a.name,
+        rolePosition: a.rolePosition,
+        startMonth: a.startMonth,
+        endMonth: a.endMonth,
+        fte: a.fte,
+        hours: Math.round(months.reduce((sum, m) => sum + m.hours, 0) * 100) / 100,
+        grosze: months.reduce((sum, m) => sum + m.grosze, 0),
+        monthsWithoutRate: months.filter((m) => m.rateSource === null).map((m) => m.month),
+        // Źródło stawki pokazujemy, gdy jest jednolite dla całego przydziału.
+        rateSource: months.every((m) => m.rateSource === "employee")
+          ? ("employee" as const)
+          : months.some((m) => m.rateSource === "position")
+            ? ("position" as const)
+            : null,
+      };
+    });
+
+    costs = {
+      people,
+      items: costItems.map((i) => ({
+        id: i.id,
+        name: i.name,
+        category: i.category,
+        amount: String(i.amount),
+      })),
+      summary: projectCostSummary(
+        allMonths,
+        costItems.map((i) => toGrosze(Number(i.amount))),
+        project.budget != null ? toGrosze(Number(project.budget)) : null
+      ),
+    };
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -132,6 +265,11 @@ export default async function ProjectDetailPage({
             startDate: project.startDate,
             endDate: project.endDate,
             budget: project.budget != null ? Number(project.budget) : null,
+            projectCardUrl: project.projectCardUrl,
+            riskCardUrl: project.riskCardUrl,
+            confluenceUrl: project.confluenceUrl,
+            miroUrl: project.miroUrl,
+            domainUrl: project.domainUrl,
           }}
           trigger={<Button variant="outline">Edytuj projekt</Button>}
         />
@@ -144,14 +282,7 @@ export default async function ProjectDetailPage({
             <span>Data rozpoczęcia: {formatDate(project.startDate)}</span>
             <span>Data zakończenia: {formatDate(project.endDate)}</span>
             <span>
-              Budżet:{" "}
-              {project.budget != null
-                ? new Intl.NumberFormat("pl-PL", {
-                    style: "currency",
-                    currency: "PLN",
-                    maximumFractionDigits: 0,
-                  }).format(Number(project.budget))
-                : "—"}
+              Budżet: {formatBudget(project.budget as number | null)}
             </span>
           </CardDescription>
         </CardHeader>
@@ -162,7 +293,23 @@ export default async function ProjectDetailPage({
         </CardContent>
       </Card>
 
-      <StaffingSection projectId={project.id} roles={roles} employees={employees} />
+      <StaffingSection
+        projectId={project.id}
+        roles={roles}
+        employees={employees}
+        positions={positions}
+      />
+
+      {costs && (
+        <ProjectCosts
+          projectId={project.id}
+          people={costs.people}
+          items={costs.items}
+          summary={costs.summary}
+        />
+      )}
+
+      <ProjectLinks links={project} />
 
       <div className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Załączniki</h2>

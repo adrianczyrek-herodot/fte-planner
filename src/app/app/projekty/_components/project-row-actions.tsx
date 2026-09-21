@@ -49,7 +49,7 @@ export function ProjectRowActions({ project }: { project: Project }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Usunąć projekt?</AlertDialogTitle>
             <AlertDialogDescription>
-              Projekt „{project.name}" zostanie trwale usunięty wraz z przydziałami
+              Projekt „{project.name}” zostanie trwale usunięty wraz z przydziałami
               i załącznikami. Tej operacji nie można cofnąć.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -8,34 +8,36 @@ import {
   FolderKanban,
   CalendarRange,
   Gauge,
+  Settings,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { Capability } from "@/lib/permissions";
 
-type Role = "user" | "manager" | "admin";
-
-// access: "all" — każdy zalogowany; "manager" — menedżer/admin; "admin" — tylko admin.
-const navItems = [
-  { href: "/app", label: "Panel", icon: LayoutDashboard, access: "all" as const },
-  { href: "/app/pracownicy", label: "Pracownicy", icon: Users, access: "admin" as const },
-  { href: "/app/zasoby", label: "Zasoby", icon: Gauge, access: "manager" as const },
-  { href: "/app/projekty", label: "Projekty", icon: FolderKanban, access: "manager" as const },
-  { href: "/app/timeline", label: "Timeline", icon: CalendarRange, access: "manager" as const },
+// Widoczność pozycji wynika z macierzy uprawnień, nie z nazwy roli — jedno
+// źródło prawdy dla nawigacji i dla guardów na stronach. `null` = każdy
+// zalogowany.
+const navItems: {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  requires: Capability | null;
+}[] = [
+  { href: "/app", label: "Panel", icon: LayoutDashboard, requires: null },
+  { href: "/app/pracownicy", label: "Pracownicy", icon: Users, requires: "manageEmployees" },
+  { href: "/app/zasoby", label: "Zasoby", icon: Gauge, requires: "viewResources" },
+  { href: "/app/projekty", label: "Projekty", icon: FolderKanban, requires: "viewProjects" },
+  { href: "/app/timeline", label: "Timeline", icon: CalendarRange, requires: "viewProjects" },
+  { href: "/app/ustawienia", label: "Ustawienia", icon: Settings, requires: "manageDictionaries" },
 ];
 
-function canSee(access: "all" | "manager" | "admin", role: Role) {
-  if (access === "all") return true;
-  if (access === "manager") return role === "manager" || role === "admin";
-  return role === "admin";
-}
-
-export function SidebarNav({ role }: { role: Role }) {
+export function SidebarNav({ capabilities }: { capabilities: Capability[] }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-col gap-1 p-3">
       {navItems
-        .filter((item) => canSee(item.access, role))
+        .filter((item) => item.requires === null || capabilities.includes(item.requires))
         .map((item) => {
         const isActive =
           item.href === "/app"

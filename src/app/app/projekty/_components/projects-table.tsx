@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   getProjectDueStatus,
+  formatBudget,
   formatDate,
   projectStatusMeta,
 } from "@/lib/project-status";
@@ -46,6 +47,7 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
             <TableHead>Nazwa</TableHead>
             <TableHead>Data rozpoczęcia</TableHead>
             <TableHead>Data zakończenia</TableHead>
+            <TableHead>Budżet</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Przypisani</TableHead>
             <TableHead>Załączniki</TableHead>
@@ -75,6 +77,9 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
                 </TableCell>
                 <TableCell>{formatDate(project.startDate)}</TableCell>
                 <TableCell>{formatDate(project.endDate)}</TableCell>
+                <TableCell className="tabular-nums">
+                  {formatBudget(project.budget)}
+                </TableCell>
                 <TableCell>
                   <Badge variant={projectStatusMeta[status].variant}>
                     {projectStatusMeta[status].label}

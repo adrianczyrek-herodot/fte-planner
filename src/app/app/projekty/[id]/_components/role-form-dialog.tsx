@@ -6,6 +6,7 @@ import { createProjectRole, updateProjectRole } from "@/app/actions/staffing";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PositionPicker } from "@/components/position-picker";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -20,18 +21,20 @@ import {
 
 type Role = {
   id: string;
-  position: string;
+  positionId: string;
   startMonth: string;
   endMonth: string;
   requiredFte: string;
+  requiredPeople: string;
 };
 
-type Props =
-  | { mode: "create"; projectId: string; trigger: React.ReactNode; role?: undefined }
-  | { mode: "edit"; role: Role; trigger: React.ReactNode; projectId?: undefined };
+type Props = (
+  | { mode: "create"; projectId: string; role?: undefined }
+  | { mode: "edit"; role: Role; projectId?: undefined }
+) & { trigger: React.ReactNode; positions: { id: string; name: string }[] };
 
 export function RoleFormDialog(props: Props) {
-  const { mode, trigger } = props;
+  const { mode, trigger, positions } = props;
   const [open, setOpen] = useState(false);
   const action =
     mode === "create"
@@ -62,16 +65,15 @@ export function RoleFormDialog(props: Props) {
           {mode === "edit" && <input type="hidden" name="id" value={role!.id} />}
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="position">Stanowisko / rola</Label>
-            <Input
-              id="position"
-              name="position"
-              defaultValue={role?.position}
-              placeholder="np. Frontend Developer"
-              required
+            <Label htmlFor="positionId">Stanowisko / rola</Label>
+            <PositionPicker
+              id="positionId"
+              name="positionId"
+              positions={positions}
+              defaultValue={role?.positionId}
             />
-            {state?.errors?.position && (
-              <p className="text-sm text-destructive">{state.errors.position[0]}</p>
+            {state?.errors?.positionId && (
+              <p className="text-sm text-destructive">{state.errors.positionId[0]}</p>
             )}
           </div>
 
@@ -104,6 +106,7 @@ export function RoleFormDialog(props: Props) {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="requiredFte">Wymagane FTE</Label>
             <Input
@@ -119,6 +122,24 @@ export function RoleFormDialog(props: Props) {
             {state?.errors?.requiredFte && (
               <p className="text-sm text-destructive">{state.errors.requiredFte[0]}</p>
             )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="requiredPeople">Liczba osób</Label>
+            <Input
+              id="requiredPeople"
+              name="requiredPeople"
+              type="number"
+              step="1"
+              min="1"
+              defaultValue={role?.requiredPeople ?? ""}
+              placeholder="np. 2"
+            />
+            {state?.errors?.requiredPeople && (
+              <p className="text-sm text-destructive">
+                {state.errors.requiredPeople[0]}
+              </p>
+            )}
+          </div>
           </div>
 
           {state?.message && (

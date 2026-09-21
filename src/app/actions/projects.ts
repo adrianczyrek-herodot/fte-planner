@@ -6,9 +6,44 @@ import { del, put } from "@vercel/blob";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
-import { requireManager } from "@/app/actions/auth";
-import { parseYmd } from "@/lib/timeline";
-import { ProjectSchema, ProjectFormState } from "@/lib/validation/project";
+import { requireCapability } from "@/app/actions/auth";
+import { parseYmd, ym } from "@/lib/timeline";
+import {
+  PROJECT_LINK_FIELDS,
+  ProjectSchema,
+  ProjectFormState,
+} from "@/lib/validation/project";
+import { ProjectRoleSchema } from "@/lib/validation/staffing";
+
+// Role deklarowane od razu przy zakładaniu projektu — zapotrzebowanie ma
+// istnieć, zanim ktokolwiek zostanie przypisany. Formularz wysyła je jako JSON
+// w jednym polu, bo liczba wierszy jest zmienna.
+const DraftRolesSchema = z.array(ProjectRoleSchema).max(20, {
+  error: "Zbyt wiele roli naraz — dodaj pozostałe na stronie projektu.",
+});
+
+function parseDraftRoles(raw: FormDataEntryValue | null) {
+  if (typeof raw !== "string" || raw.trim() === "" || raw.trim() === "[]") {
+    return { roles: [] as z.infer<typeof DraftRolesSchema> };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { error: "Nie udało się odczytać listy roli." };
+  }
+  const v = DraftRolesSchema.safeParse(parsed);
+  if (!v.success) {
+    const first = v.error.issues[0];
+    const row = typeof first?.path?.[0] === "number" ? first.path[0] + 1 : null;
+    return {
+      error: row
+        ? `Rola ${row}: ${first.message}`
+        : (first?.message ?? "Nieprawidłowe dane roli."),
+    };
+  }
+  return { roles: v.data };
+}
 
 const PROJECTS_PATH = "/app/projekty";
 const TIMELINE_PATH = "/app/timeline";
@@ -17,7 +52,7 @@ export async function createProject(
   _state: ProjectFormState,
   formData: FormData
 ): Promise<ProjectFormState> {
-  await requireManager();
+  await requireCapability("manageProjects");
 
   const validatedFields = ProjectSchema.safeParse({
     name: formData.get("name"),
@@ -25,13 +60,22 @@ export async function createProject(
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
     budget: formData.get("budget"),
+    ...Object.fromEntries(
+      PROJECT_LINK_FIELDS.map((f) => [f.key, formData.get(f.key)])
+    ),
   });
 
   if (!validatedFields.success) {
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { name, description, startDate, endDate, budget } = validatedFields.data;
+  const draft = parseDraftRoles(formData.get("rolesJson"));
+  if (draft.error) {
+    return { message: draft.error };
+  }
+
+  const { name, description, startDate, endDate, budget, ...links } =
+    validatedFields.data;
 
   const project = await prisma.project.create({
     data: {
@@ -40,10 +84,21 @@ export async function createProject(
       startDate,
       endDate,
       budget,
+      ...links,
+      roles: {
+        create: draft.roles!.map((r) => ({
+          positionId: r.positionId,
+          startMonth: r.startMonth,
+          endMonth: r.endMonth,
+          requiredFte: Math.round(r.requiredFte * 100) / 100,
+          requiredPeople: r.requiredPeople,
+        })),
+      },
     },
   });
 
   revalidatePath(PROJECTS_PATH);
+  revalidatePath(TIMELINE_PATH);
   redirect(`/app/projekty/${project.id}`);
 }
 
@@ -51,7 +106,7 @@ export async function updateProject(
   _state: ProjectFormState,
   formData: FormData
 ): Promise<ProjectFormState> {
-  await requireManager();
+  await requireCapability("manageProjects");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) {
@@ -64,13 +119,17 @@ export async function updateProject(
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
     budget: formData.get("budget"),
+    ...Object.fromEntries(
+      PROJECT_LINK_FIELDS.map((f) => [f.key, formData.get(f.key)])
+    ),
   });
 
   if (!validatedFields.success) {
     return { errors: z.flattenError(validatedFields.error).fieldErrors };
   }
 
-  const { name, description, startDate, endDate, budget } = validatedFields.data;
+  const { name, description, startDate, endDate, budget, ...links } =
+    validatedFields.data;
 
   await prisma.project.update({
     where: { id },
@@ -80,6 +139,7 @@ export async function updateProject(
       startDate,
       endDate,
       budget,
+      ...links,
     },
   });
 
@@ -97,7 +157,7 @@ export async function uploadAttachment(
   _state: AttachmentUploadState,
   formData: FormData
 ): Promise<AttachmentUploadState> {
-  await requireManager();
+  await requireCapability("manageProjects");
 
   const file = formData.get("file");
 
@@ -109,10 +169,23 @@ export async function uploadAttachment(
     return { message: "Plik jest zbyt duży (maksymalnie 25 MB)." };
   }
 
-  const blob = await put(`projects/${projectId}/${file.name}`, file, {
-    access: "private",
-    addRandomSuffix: true,
-  });
+  // Storage bywa nieskonfigurowany (brak BLOB_READ_WRITE_TOKEN) albo chwilowo
+  // niedostępny. Bez tego catcha wyjątek z server action ubija cały render
+  // strony projektu — a to tylko nieudany upload jednego pliku.
+  let blob;
+  try {
+    blob = await put(`projects/${projectId}/${file.name}`, file, {
+      access: "private",
+      addRandomSuffix: true,
+    });
+  } catch (error) {
+    console.error("[uploadAttachment] blob put failed", error);
+    return {
+      message:
+        "Nie udało się przesłać pliku — magazyn plików jest niedostępny. " +
+        "Sprawdź konfigurację BLOB_READ_WRITE_TOKEN.",
+    };
+  }
 
   await prisma.attachment.create({
     data: {
@@ -129,7 +202,7 @@ export async function uploadAttachment(
 }
 
 export async function deleteAttachment(formData: FormData) {
-  await requireManager();
+  await requireCapability("manageProjects");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) {
@@ -152,7 +225,7 @@ export async function deleteAttachment(formData: FormData) {
 }
 
 export async function deleteProject(formData: FormData) {
-  await requireManager();
+  await requireCapability("manageProjects");
 
   const id = formData.get("id");
   if (typeof id !== "string" || !id) {
@@ -174,28 +247,38 @@ export async function deleteProject(formData: FormData) {
   revalidatePath(PROJECTS_PATH);
 }
 
-// Przeciągnięcie/rozciągnięcie paska projektu na osi Gantta — ustawia daty
-// z dokładnością do dnia. Zmiana widoczna też na liście projektów.
+export type RescheduleResult = {
+  ok: boolean;
+  /** Komunikat błędu — zmiana nie została zapisana. */
+  message?: string;
+  /** Zapisano, ale coś wymaga uwagi (np. rola poza terminami projektu). */
+  warning?: string;
+};
+
+// Nowe terminy projektu z osi Gantta — z dokładnością do dnia. Wywoływane po
+// jawnym zatwierdzeniu zmiany, nie w trakcie przeciągania.
 export async function rescheduleProject(
   projectId: string,
   startYmd: string,
   endYmd: string
-) {
-  await requireManager();
+): Promise<RescheduleResult> {
+  await requireCapability("manageProjects");
 
   const isYmd = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
   if (!isYmd(startYmd) || !isYmd(endYmd)) {
-    return;
+    return { ok: false, message: "Nieprawidłowy format daty." };
   }
 
   const startDate = parseYmd(startYmd);
   const endDate = parseYmd(endYmd);
-  if (
-    Number.isNaN(startDate.getTime()) ||
-    Number.isNaN(endDate.getTime()) ||
-    startDate > endDate
-  ) {
-    return;
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return { ok: false, message: "Nieprawidłowa data." };
+  }
+  if (startDate > endDate) {
+    return {
+      ok: false,
+      message: "Data zakończenia nie może być wcześniejsza niż rozpoczęcia.",
+    };
   }
 
   await prisma.project.update({
@@ -206,4 +289,27 @@ export async function rescheduleProject(
   revalidatePath(TIMELINE_PATH);
   revalidatePath(PROJECTS_PATH);
   revalidatePath(`${PROJECTS_PATH}/${projectId}`);
+
+  // Przesunięcie projektu może zostawić zapotrzebowanie na role poza jego
+  // terminami. Nie blokujemy zapisu (bywa etapem przy planowaniu), ale nie
+  // przechodzimy nad tym w milczeniu — z okresów ról będą kiedyś wynikać koszty.
+  const roles = await prisma.projectRole.findMany({
+    where: { projectId },
+    select: { position: true, startMonth: true, endMonth: true },
+  });
+  const projectStart = ym(startDate);
+  const projectEnd = ym(endDate);
+  const outside = roles.filter(
+    (r) => r.startMonth < projectStart || r.endMonth > projectEnd
+  );
+
+  if (outside.length > 0) {
+    const names = [...new Set(outside.map((r) => r.position))].join(", ");
+    return {
+      ok: true,
+      warning: `Zapisano, ale ${outside.length === 1 ? "rola wychodzi" : "role wychodzą"} poza terminy projektu: ${names}.`,
+    };
+  }
+
+  return { ok: true };
 }

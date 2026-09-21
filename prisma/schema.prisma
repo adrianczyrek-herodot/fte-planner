@@ -19,6 +19,8 @@ datasource db {
 enum Role {
   user
   manager
+  // Obsługa kadrowo-finansowa: słowniki i stawki, bez wglądu w resztę.
+  finance
   admin
 }
 
@@ -39,8 +41,9 @@ model User {
   passwordHash String?
   firstName    String
   lastName     String
-  position     String?
-  skills       String[]   @default([]) // kompetencje/narzędzia jako tagi
+  positionId   String? // stanowisko ze słownika globalnego
+  position     Position?  @relation(fields: [positionId], references: [id], onDelete: SetNull)
+  skills       Skill[] // kompetencje ze słownika globalnego
   role         Role       @default(user)
   status       UserStatus @default(pending)
 
@@ -53,6 +56,39 @@ model User {
   sessions            Session[]
   assignments         Assignment[]
   passwordResetTokens PasswordResetToken[]
+  rates               EmployeeRate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([positionId])
+}
+
+// ---------------------------------------------------------------------------
+// Słowniki globalne
+// ---------------------------------------------------------------------------
+
+// Stanowiska — jedna lista dla profili pracowników i dla zapotrzebowania na
+// role w projektach. Relacja, a nie tekst, żeby zmiana nazwy propagowała się
+// wszędzie i żeby stawka per stanowisko miała się do czego przyczepić.
+model Position {
+  id   String @id @default(cuid())
+  name String @unique
+
+  users        User[]
+  projectRoles ProjectRole[]
+  rates        PositionRate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Kompetencje przypisywane pracownikom jako tagi.
+model Skill {
+  id   String @id @default(cuid())
+  name String @unique
+
+  users User[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -80,8 +116,17 @@ model Project {
   endDate     DateTime?
   budget      Decimal?  @db.Decimal(12, 2) // budżet wstępny
 
+  // Linki do zasobów prowadzonych poza aplikacją (karta projektu, ryzyka,
+  // dokumentacja, tablica, domena produktu).
+  projectCardUrl String?
+  riskCardUrl    String?
+  confluenceUrl  String?
+  miroUrl        String?
+  domainUrl      String?
+
   attachments Attachment[]
   roles       ProjectRole[]
+  costItems   ProjectCostItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -94,10 +139,16 @@ model ProjectRole {
   id          String  @id @default(cuid())
   projectId   String
   project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  position    String // np. "Frontend", "Analityk"
+  positionId  String // stanowisko ze słownika globalnego
+  position    Position @relation(fields: [positionId], references: [id])
   startMonth  String  @db.VarChar(7) // "YYYY-MM"
   endMonth    String  @db.VarChar(7)
   requiredFte Decimal @db.Decimal(4, 2)
+
+  // Ilu ludzi ma stanąć na tej roli. Pokrycie liczymy z FTE, ale liczba osób
+  // jest pilnowana osobno — 2.0 FTE można obsadzić dwiema osobami na całość
+  // albo czterema na pół etatu, a to nie to samo zapotrzebowanie.
+  requiredPeople Int?
 
   assignments Assignment[]
 
@@ -105,6 +156,7 @@ model ProjectRole {
   updatedAt DateTime @updatedAt
 
   @@index([projectId])
+  @@index([positionId])
 }
 
 model Attachment {
@@ -139,6 +191,71 @@ model Assignment {
 
   @@index([userId])
   @@index([projectRoleId])
+}
+
+// ---------------------------------------------------------------------------
+// Warstwa kosztowa
+// ---------------------------------------------------------------------------
+
+// Stawki są GODZINOWE i mają datę obowiązywania. Nie nadpisujemy poprzedniej
+// wartości, tylko dokładamy kolejną — dzięki temu koszt marca liczy się stawką
+// z marca i raport sprzed pół roku nie zmienia się po podwyżce.
+//
+// Stawka pracownika i stawka stanowiska są osobnymi tabelami, a nie jedną z
+// dwoma opcjonalnymi kluczami: każda ma inny właściciel, inny cykl życia i
+// prostszą walidację. Przy liczeniu obowiązuje reguła: stawka pracownika,
+// a gdy jej brak — uśredniona stawka jego stanowiska.
+model EmployeeRate {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  hourlyRate Decimal  @db.Decimal(10, 2) // PLN za godzinę
+  validFrom  DateTime @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, validFrom])
+  @@index([userId])
+}
+
+model PositionRate {
+  id         String   @id @default(cuid())
+  positionId String
+  position   Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  hourlyRate Decimal  @db.Decimal(10, 2) // PLN za godzinę
+  validFrom  DateTime @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([positionId, validFrom])
+  @@index([positionId])
+}
+
+enum CostCategory {
+  tools
+  hardware
+  software
+  other
+}
+
+// Koszty stałe projektu poza wynagrodzeniami: narzędzia, sprzęt, licencje.
+model ProjectCostItem {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name     String
+  category CostCategory @default(other)
+  amount   Decimal      @db.Decimal(12, 2) // PLN
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
 }
 
 // ---------------------------------------------------------------------------

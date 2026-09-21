@@ -19,6 +19,29 @@ const optionalBudget = z.preprocess(
     .nullable()
 );
 
+// Puste → null; inaczej poprawny adres http(s). Ograniczenie do tych dwóch
+// schematów jest celowe — pole ma trzymać link do karty czy tablicy, a nie
+// dowolny URI (mailto:, javascript: itd.).
+const optionalUrl = z.preprocess(
+  (value) =>
+    typeof value === "string" && value.trim() !== "" ? value.trim() : null,
+  z
+    .url({ protocol: /^https?$/, error: "Podaj adres zaczynający się od http:// lub https://." })
+    .max(2048, { error: "Adres jest zbyt długi." })
+    .nullable()
+);
+
+/** Linki dodatkowe projektu — klucz w bazie → etykieta w interfejsie. */
+export const PROJECT_LINK_FIELDS = [
+  { key: "projectCardUrl", label: "Karta projektu" },
+  { key: "riskCardUrl", label: "Karta ryzyk" },
+  { key: "confluenceUrl", label: "Confluence" },
+  { key: "miroUrl", label: "Miro" },
+  { key: "domainUrl", label: "Domena" },
+] as const;
+
+export type ProjectLinkKey = (typeof PROJECT_LINK_FIELDS)[number]["key"];
+
 export const ProjectSchema = z
   .object({
     name: z.string().trim().min(1, { error: "Nazwa jest wymagana." }),
@@ -26,6 +49,11 @@ export const ProjectSchema = z
     startDate: optionalDate,
     endDate: optionalDate,
     budget: optionalBudget,
+    projectCardUrl: optionalUrl,
+    riskCardUrl: optionalUrl,
+    confluenceUrl: optionalUrl,
+    miroUrl: optionalUrl,
+    domainUrl: optionalUrl,
   })
   // Jeśli obie daty podane, zakończenie nie może być wcześniejsze niż rozpoczęcie.
   .refine(
@@ -45,6 +73,11 @@ export type ProjectFormState =
         startDate?: string[];
         endDate?: string[];
         budget?: string[];
+        projectCardUrl?: string[];
+        riskCardUrl?: string[];
+        confluenceUrl?: string[];
+        miroUrl?: string[];
+        domainUrl?: string[];
       };
       message?: string;
     }

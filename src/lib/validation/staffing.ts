@@ -5,15 +5,28 @@ const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, {
 });
 
 // --- Zapotrzebowanie na rolę (ProjectRole) ---------------------------------
+// Puste → null; inaczej dodatnia liczba całkowita.
+const optionalPeople = z.preprocess(
+  (value) =>
+    typeof value === "string" && value.trim() !== "" ? value.trim() : null,
+  z.coerce
+    .number({ error: "Liczba osób musi być liczbą." })
+    .int({ error: "Liczba osób musi być całkowita." })
+    .gt(0, { error: "Liczba osób musi być większa od 0." })
+    .max(999, { error: "Liczba osób zbyt duża." })
+    .nullable()
+);
+
 export const ProjectRoleSchema = z
   .object({
-    position: z.string().trim().min(1, { error: "Podaj stanowisko/rolę." }),
+    positionId: z.string().trim().min(1, { error: "Wybierz stanowisko." }),
     startMonth: month,
     endMonth: month,
     requiredFte: z.coerce
       .number({ error: "Podaj wymagane FTE." })
       .gt(0, { error: "FTE musi być większe od 0." })
       .max(99, { error: "FTE zbyt duże." }),
+    requiredPeople: optionalPeople,
   })
   .refine((d) => d.startMonth <= d.endMonth, {
     error: "Miesiąc końcowy nie może być wcześniejszy niż początkowy.",
@@ -24,10 +37,11 @@ export type ProjectRoleFormState =
   | {
       success?: boolean;
       errors?: {
-        position?: string[];
+        positionId?: string[];
         startMonth?: string[];
         endMonth?: string[];
         requiredFte?: string[];
+        requiredPeople?: string[];
       };
       message?: string;
     }

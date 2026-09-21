@@ -14,6 +14,10 @@ const badgeVariants = cva(
           "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:
           "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
+        // Trzeci stan semantyczny obok "w porządku" i "błąd": coś wymaga uwagi,
+        // ale nie jest błędem — np. rola obsadzona nad zapotrzebowanie.
+        warning:
+          "bg-amber-500/15 text-amber-700 dark:bg-amber-400/15 dark:text-amber-400 [a]:hover:bg-amber-500/25",
         outline:
           "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost:

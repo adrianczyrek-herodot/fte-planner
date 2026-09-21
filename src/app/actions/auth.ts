@@ -8,6 +8,12 @@ import * as z from "zod";
 import { auth, signIn, signOut, PendingApprovalError, AccountInactiveError } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  can,
+  capabilitiesOf,
+  type Capability,
+  type Role,
+} from "@/lib/permissions";
+import {
   LoginFormSchema,
   LoginFormState,
   SignupFormSchema,
@@ -114,38 +120,25 @@ export async function requireApprovedUser() {
   return session;
 }
 
-export async function requireAdmin() {
-  const session = await requireApprovedUser();
-
-  // Re-check the role against the DB (not the JWT) so a role change takes
-  // effect immediately, mirroring the status re-check in requireApprovedUser.
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true },
-  });
-
-  if (dbUser?.role !== "admin") {
-    redirect("/app");
-  }
-
-  return session;
-}
-
-// Dostęp zarządczy: admin LUB menedżer (delivery manager). Zwykły user →
-// przekierowanie na własny (ograniczony) dashboard.
-export async function requireManager() {
+/**
+ * Jedyna brama do stron i akcji: sprawdzamy UPRAWNIENIE z macierzy, nie nazwę
+ * roli. Rolę czytamy świeżo z bazy (nie z tokenu JWT), żeby jej zmiana działała
+ * natychmiast — tak samo jak przy statusie w requireApprovedUser.
+ */
+export async function requireCapability(capability: Capability) {
   const session = await requireApprovedUser();
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { role: true },
   });
+  const role = (dbUser?.role ?? "user") as Role;
 
-  if (dbUser?.role !== "admin" && dbUser?.role !== "manager") {
+  if (!can(role, capability)) {
     redirect("/app");
   }
 
-  return session;
+  return { session, role };
 }
 
 // Rola pobrana świeżo z bazy — do rozgałęzień UI (np. dashboard admin vs user).
@@ -155,5 +148,6 @@ export async function getCurrentRole() {
     where: { id: session.user.id },
     select: { role: true },
   });
-  return { session, role: dbUser?.role ?? "user" };
+  const role = (dbUser?.role ?? "user") as Role;
+  return { session, role, capabilities: capabilitiesOf(role) };
 }

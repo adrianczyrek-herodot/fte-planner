@@ -22,3 +22,14 @@ export function formatDate(date: Date | null): string {
   if (!date) return "—";
   return new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium" }).format(date);
 }
+
+// Budżet w PLN, bez groszy — wspólny format dla listy i szczegółów projektu.
+export function formatBudget(budget: number | null): string {
+  if (budget == null) return "—";
+  return new Intl.NumberFormat("pl-PL", {
+    style: "currency",
+    currency: "PLN",
+    maximumFractionDigits: 0,
+    useGrouping: "always",
+  }).format(Number(budget));
+}
