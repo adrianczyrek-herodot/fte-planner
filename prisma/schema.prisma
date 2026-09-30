@@ -305,3 +305,43 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+// ---------------------------------------------------------------------------
+// Dziennik zdarzeń (rozliczalność — RODO art. 5 ust. 2)
+
+enum AuditAction {
+  employee_anonymized
+  employee_deactivated
+  employee_activated
+  employee_role_changed
+}
+
+/// Ślad po operacjach nieodwracalnych lub zmieniających czyjeś uprawnienia.
+///
+/// Dwie decyzje są tu świadome i warto je znać:
+///
+/// 1. BRAK KLUCZY OBCYCH do User. Relacja z kaskadą skasowałaby dziennik razem
+///    z użytkownikiem, czyli dokładnie wtedy, gdy wpis jest najbardziej
+///    potrzebny. Imiona rozwiązujemy dopiero przy odczycie.
+///
+/// 2. BRAK DANYCH OSOBOWYCH w samym wpisie — trzymamy wyłącznie identyfikatory.
+///    Zapisanie tu imienia i nazwiska sprawiłoby, że przeżyłyby anonimizację i
+///    zniweczyły jej sens.
+model AuditEvent {
+  id String   @id @default(cuid())
+  at DateTime @default(now())
+
+  /// Kto wykonał operację. null, gdy zdarzenie pochodzi spoza sesji.
+  actorId String?
+
+  action AuditAction
+
+  /// Kogo operacja dotyczyła.
+  targetUserId String?
+
+  /// Kontekst bez danych osobowych, np. "rola: pracownik → administrator".
+  details String?
+
+  @@index([at])
+  @@index([targetUserId])
+}

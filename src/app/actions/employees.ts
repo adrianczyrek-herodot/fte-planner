@@ -5,6 +5,7 @@ import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { anonymizedIdentity } from "@/lib/anonymize";
+import { auditEntry, roleChangeDetails, statusChangeAction } from "@/lib/audit";
 import { requireCapability } from "@/app/actions/auth";
 import { createPasswordResetToken } from "@/lib/tokens";
 import { sendPasswordSetupEmail } from "@/lib/mail";
@@ -92,26 +93,45 @@ export async function updateEmployee(
   // Edycja zanonimizowanego rekordu wpisałaby mu z powrotem imię i nazwisko,
   // odwracając nieodwracalną z założenia operację. UI takiego formularza nie
   // pokazuje; to backstop na bezpośrednie wywołanie akcji.
-  const anonimizowany = await prisma.user.findUnique({
+  const przed = await prisma.user.findUnique({
     where: { id },
-    select: { anonymizedAt: true },
+    select: { anonymizedAt: true, role: true },
   });
-  if (!anonimizowany || anonimizowany.anonymizedAt !== null) {
+  if (!przed || przed.anonymizedAt !== null) {
     return { success: true };
   }
 
-  await prisma.user.update({
-    where: { id },
-    data: {
-      firstName,
-      lastName,
-      positionId,
-      // `set` zastępuje cały zestaw kompetencji tym z formularza.
-      skills: { set: skillIds.map((id) => ({ id })) },
-      // Nie pozwól zmienić własnej roli (ochrona przed samo-odebraniem admina).
-      ...(id === session.user.id ? {} : { role }),
-    },
-  });
+  // Własnej roli zmienić nie można (ochrona przed samo-odebraniem admina), więc
+  // zdarzenie powstaje tylko wtedy, gdy rola faktycznie się zmienia.
+  const rolaZmieniona = id !== session.user.id && przed.role !== role;
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id },
+      data: {
+        firstName,
+        lastName,
+        positionId,
+        // `set` zastępuje cały zestaw kompetencji tym z formularza.
+        skills: { set: skillIds.map((id) => ({ id })) },
+        ...(id === session.user.id ? {} : { role }),
+      },
+    }),
+    // Zmiana imienia czy kompetencji nie trafia do dziennika — logujemy to, co
+    // zmienia czyjeś uprawnienia, a nie każdą edycję formularza.
+    ...(rolaZmieniona
+      ? [
+          prisma.auditEvent.create({
+            data: auditEntry({
+              actorId: session.user.id,
+              action: "employee_role_changed",
+              targetUserId: id,
+              details: roleChangeDetails(przed.role, role),
+            }),
+          }),
+        ]
+      : []),
+  ]);
 
   revalidatePath(EMPLOYEES_PATH);
   return { success: true };
@@ -132,11 +152,17 @@ export async function setEmployeeStatus(formData: FormData) {
 
   // Zanonimizowany rekord zostaje nieaktywny na zawsze — przywrócenie go do
   // statusu „aktywny” wpuściłoby pustą tożsamość z powrotem na listy obsady.
-  const anonimizowany = await prisma.user.findUnique({
+  const biezacy = await prisma.user.findUnique({
     where: { id },
-    select: { anonymizedAt: true },
+    select: { anonymizedAt: true, status: true },
   });
-  if (!anonimizowany || anonimizowany.anonymizedAt !== null) {
+  if (!biezacy || biezacy.anonymizedAt !== null) {
+    return;
+  }
+
+  // Ustawienie tego samego statusu nie jest zdarzeniem — nie zaśmiecamy nim
+  // dziennika.
+  if (biezacy.status === status) {
     return;
   }
 
@@ -152,7 +178,17 @@ export async function setEmployeeStatus(formData: FormData) {
     }
   }
 
-  await prisma.user.update({ where: { id }, data: { status } });
+  await prisma.$transaction([
+    prisma.user.update({ where: { id }, data: { status } }),
+    prisma.auditEvent.create({
+      data: auditEntry({
+        actorId: session.user.id,
+        action: statusChangeAction(status),
+        targetUserId: id,
+      }),
+    }),
+  ]);
+
   revalidatePath(EMPLOYEES_PATH);
 }
 
@@ -214,6 +250,15 @@ export async function anonymizeEmployee(formData: FormData) {
         // rzadki zestaw umiejętności wskazuje konkretną osobę.
         skills: { set: [] },
       },
+    }),
+    // Wpis do dziennika idzie tą samą transakcją: operacja nieodwracalna bez
+    // śladu, kto ją wykonał, nie spełnia wymogu rozliczalności.
+    prisma.auditEvent.create({
+      data: auditEntry({
+        actorId: session.user.id,
+        action: "employee_anonymized",
+        targetUserId: id,
+      }),
     }),
   ]);
 

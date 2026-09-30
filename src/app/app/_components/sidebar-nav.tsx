@@ -8,6 +8,7 @@ import {
   FolderKanban,
   CalendarRange,
   Gauge,
+  ScrollText,
   Settings,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ const navItems: {
   { href: "/app/zasoby", label: "Zasoby", icon: Gauge, requires: "viewResources" },
   { href: "/app/projekty", label: "Projekty", icon: FolderKanban, requires: "viewProjects" },
   { href: "/app/timeline", label: "Timeline", icon: CalendarRange, requires: "viewProjects" },
+  { href: "/app/dziennik", label: "Dziennik", icon: ScrollText, requires: "manageEmployees" },
   { href: "/app/ustawienia", label: "Ustawienia", icon: Settings, requires: "manageDictionaries" },
 ];
 
