@@ -1,8 +1,8 @@
 "use client";
 
-import { Pencil, UserCheck, UserX } from "lucide-react";
+import { Eraser, Pencil, UserCheck, UserX } from "lucide-react";
 
-import { setEmployeeStatus } from "@/app/actions/employees";
+import { anonymizeEmployee, setEmployeeStatus } from "@/app/actions/employees";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -28,6 +28,7 @@ type Employee = {
   skills: DictItem[];
   role: "user" | "manager" | "finance" | "admin";
   status: "approved" | "inactive" | "pending";
+  anonymizedAt: Date | null;
 };
 
 export function EmployeeRowActions({
@@ -51,6 +52,24 @@ export function EmployeeRowActions({
     : isLastActive
       ? "Nie można dezaktywować ostatniego aktywnego pracownika"
       : null;
+
+  // Po anonimizacji nie ma już czego edytować ani komu przywracać dostępu —
+  // rekord jest tylko nośnikiem historii obsady. Zostawienie czynnych
+  // przycisków sugerowałoby, że operację da się cofnąć.
+  if (employee.anonymizedAt) {
+    return (
+      <span className="text-xs whitespace-nowrap text-muted-foreground">
+        Dane usunięte
+      </span>
+    );
+  }
+
+  const anonimizacjaBlokada = isCurrentUser
+    ? "Nie możesz zanonimizować własnego konta"
+    : isLastActive
+      ? "Nie można zanonimizować ostatniego aktywnego pracownika"
+      : null;
+
   return (
     <div className="flex items-center gap-1">
       <EmployeeFormDialog
@@ -123,6 +142,67 @@ export function EmployeeRowActions({
                 <input type="hidden" name="status" value="inactive" />
                 <AlertDialogAction type="submit" variant="destructive">
                   Dezaktywuj
+                </AlertDialogAction>
+              </form>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {anonimizacjaBlokada ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={anonimizacjaBlokada}
+          title={anonimizacjaBlokada}
+          disabled
+        >
+          <Eraser />
+        </Button>
+      ) : (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Usuń dane osobowe pracownika"
+              title="Usuń dane osobowe (RODO)"
+            >
+              <Eraser />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Trwale usunąć dane osobowe?
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  <p>
+                    Imię, nazwisko, e-mail, hasło, stanowisko i kompetencje osoby{" "}
+                    <strong>
+                      {employee.firstName} {employee.lastName}
+                    </strong>{" "}
+                    zostaną nadpisane. Sesje i dostęp do logowania znikną
+                    natychmiast.
+                  </p>
+                  <p>
+                    Przydziały do projektów i wyliczone koszty zostaną
+                    zachowane, ale jako anonimowy rekord — bez tego rozsypałaby
+                    się historia obsady projektów.
+                  </p>
+                  <p className="font-medium text-destructive">
+                    Tej operacji nie da się cofnąć.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Anuluj</AlertDialogCancel>
+              <form action={anonymizeEmployee}>
+                <input type="hidden" name="id" value={employee.id} />
+                <AlertDialogAction type="submit" variant="destructive">
+                  Usuń dane
                 </AlertDialogAction>
               </form>
             </AlertDialogFooter>

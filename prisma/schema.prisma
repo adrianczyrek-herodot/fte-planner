@@ -47,6 +47,11 @@ model User {
   role         Role       @default(user)
   status       UserStatus @default(pending)
 
+  // Moment anonimizacji (RODO art. 17). Ustawiany bezpowrotnie: dane osobowe są
+  // wtedy nadpisywane, a rekord zostaje wyłącznie po to, by nie rozsypać
+  // historii obsady i kosztów projektów. null = zwykły, nietknięty pracownik.
+  anonymizedAt DateTime?
+
   // Pola wymagane/używane przez adapter Auth.js (opcjonalne przy credentials).
   name          String?
   emailVerified DateTime?

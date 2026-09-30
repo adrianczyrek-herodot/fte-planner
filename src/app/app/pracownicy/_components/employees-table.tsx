@@ -24,6 +24,7 @@ type Employee = {
   skills: DictItem[];
   role: "user" | "manager" | "finance" | "admin";
   status: "approved" | "inactive" | "pending";
+  anonymizedAt: Date | null;
   monthlyFte: number;
 };
 
