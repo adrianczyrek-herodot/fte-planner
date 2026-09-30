@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
 import { dayIndex, timelineRange } from "@/lib/timeline";
+import { InfoHint } from "@/components/info-hint";
 import { TimelineGantt } from "./_components/timeline-gantt";
 
 export const metadata: Metadata = {
@@ -93,7 +94,18 @@ export default async function TimelinePage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold">Timeline</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold">
+          Timeline
+          <InfoHint label="Jak czytać Timeline">
+            Jeden wiersz to jeden projekt, a pasek pokrywa jego okres co do dnia.
+            Rozwinięcie wiersza pokazuje obsadzone osoby — ich paski mają jednak
+            granulację miesięczną, bo przydziały są dziś planowane na całe
+            miesiące. Czerwony trójkąt oznacza, że ktoś obsadzony na tym
+            projekcie ma w którymś miesiącu sumę FTE powyżej pełnego etatu;
+            dotyczy to całego jego obłożenia, także z innych projektów.
+            Projekty bez dat trafiają na listę pod wykresem.
+          </InfoHint>
+        </h1>
         <p className="text-muted-foreground">
           Każdy projekt ma własny wiersz. Przeciągnij pasek, aby przesunąć projekt w
           czasie; złap jego krawędź, aby zmienić datę rozpoczęcia lub zakończenia.

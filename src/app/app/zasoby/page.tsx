@@ -9,6 +9,7 @@ import { monthsBetween } from "@/lib/staffing";
 import { formatMonthLabel, ym } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { InfoHint } from "@/components/info-hint";
 import { ZasobyFilters } from "./_components/zasoby-filters";
 
 export const metadata: Metadata = {
@@ -144,7 +145,17 @@ export default async function ZasobyPage({
             <thead>
               <tr className="border-b bg-muted/30">
                 <th className="sticky left-0 z-10 bg-muted/30 px-4 py-2 text-left font-medium text-muted-foreground">
-                  Pracownik
+                  <span className="flex items-center gap-1.5">
+                    Pracownik
+                    <InfoHint label="Jak czytać tę siatkę">
+                      Każda komórka to suma FTE tej osoby w danym miesiącu,
+                      policzona ze wszystkich jej przydziałów. Kreska oznacza
+                      brak zaangażowania, kolor niebieski dokładnie pełny etat
+                      (1.00), a czerwony wartość powyżej 1.00, czyli
+                      przeciążenie. Na liście są wyłącznie osoby o statusie
+                      „Aktywny”.
+                    </InfoHint>
+                  </span>
                 </th>
                 {months.map((m) => (
                   <th

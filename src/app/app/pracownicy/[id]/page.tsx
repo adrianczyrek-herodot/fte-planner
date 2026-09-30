@@ -138,13 +138,20 @@ export default async function EmployeeDetailPage({
           value={String(Number((thisMonth?.total ?? 0).toFixed(2)))}
           icon={Gauge}
           tone={thisMonth?.isOverloaded ? "warn" : "default"}
+          hint="Suma FTE ze wszystkich przydziałów tej osoby obejmujących bieżący miesiąc. 1.00 to pełny etat — wartość wyższa oznacza zaplanowanie ponad dostępność."
         />
-        <StatCard label="Projekty" value={new Set(assignments.map((a) => a.projectId)).size} icon={ClipboardList} />
+        <StatCard
+          label="Projekty"
+          value={new Set(assignments.map((a) => a.projectId)).size}
+          icon={ClipboardList}
+          hint="Liczba różnych projektów w całej historii przydziałów tej osoby — także zakończonych i przyszłych, nie tylko bieżących. Dwie role w jednym projekcie liczą się raz."
+        />
         <StatCard
           label="Miesiące z przeciążeniem"
           value={overloadedMonths.length}
           icon={Gauge}
           tone="warn"
+          hint="Ile miesięcy na osi czasu poniżej ma sumę FTE powyżej 1.00. Oś obejmuje trzy miesiące wstecz i dziewięć w przód od dziś, więc dalsza przyszłość nie jest tu liczona."
         />
       </div>
 

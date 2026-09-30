@@ -11,6 +11,7 @@ import { Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
 import { deleteAssignment, deleteProjectRole } from "@/app/actions/staffing";
 import { formatMonthLabel } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
+import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RoleFormDialog } from "./role-form-dialog";
@@ -138,6 +139,16 @@ export function StaffingSection({
                       </span>
                     </Badge>
                   )}
+                  <InfoHint label="Jak liczymy pokrycie roli">
+                    Procent to suma obsadzonego FTE podzielona przez sumę
+                    zapotrzebowania, po wszystkich miesiącach roli łącznie.
+                    Etykieta patrzy jednak na pojedyncze miesiące: „Niedobór”
+                    pojawia się, gdy brakuje obsady w którymkolwiek z nich.
+                    Dlatego rola może mieć 100% i nadal być oznaczona jako
+                    niedobór — jeden miesiąc obsadzony z nadmiarem nie zasypuje
+                    luki w innym. Licznik osób to unikalni ludzie w całym okresie
+                    roli, a nie obsada konkretnego miesiąca.
+                  </InfoHint>
                   {role.people.status === "unset" && role.people.assigned > 0 && (
                     <Badge variant="outline" title="Nie zadeklarowano liczby osób">
                       <Users className="size-3" />

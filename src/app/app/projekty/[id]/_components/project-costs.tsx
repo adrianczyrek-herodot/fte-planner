@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useActionState, useState } from "react";
 import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 
@@ -9,6 +10,7 @@ import { COST_CATEGORIES } from "@/lib/validation/rate";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { formatMonthLabel } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
+import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,9 +97,31 @@ export function ProjectCosts({
 
       {/* --- Zestawienie --- */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile label="Wynagrodzenia" value={formatGrosze(summary.laborGrosze)} />
-        <Tile label="Koszty dodatkowe" value={formatGrosze(summary.extraGrosze)} />
-        <Tile label="Koszt razem" value={formatGrosze(summary.totalGrosze)} strong />
+        <Tile
+          label="Wynagrodzenia"
+          value={formatGrosze(summary.laborGrosze)}
+          explain={
+            <>
+              Koszt osób z tabeli poniżej. Dla każdego miesiąca przydziału:
+              godziny × stawka godzinowa, gdzie godziny = FTE × dni robocze ×
+              8 h. Dni robocze to poniedziałki–piątki pomniejszone o dni
+              ustawowo wolne od pracy. Nie uwzględniamy natomiast urlopów ani
+              zwolnień. Stawka to własna stawka pracownika, a gdy jej nie ma —
+              stawka jego stanowiska; obowiązuje ta z pierwszego dnia miesiąca.
+            </>
+          }
+        />
+        <Tile
+          label="Koszty dodatkowe"
+          value={formatGrosze(summary.extraGrosze)}
+          explain="Suma pozycji dodanych ręcznie w sekcji poniżej (narzędzia, sprzęt, licencje). Nie wynikają z obsady ani ze stawek."
+        />
+        <Tile
+          label="Koszt razem"
+          value={formatGrosze(summary.totalGrosze)}
+          strong
+          explain="Wynagrodzenia plus koszty dodatkowe. Miesiące bez stawki wchodzą tu jako zero, więc przy ostrzeżeniu powyżej kwota jest zaniżona."
+        />
         <Tile
           label="Marża"
           value={
@@ -108,6 +132,7 @@ export function ProjectCosts({
                 }`
           }
           hint={summary.budgetGrosze == null ? "brak budżetu" : undefined}
+          explain="Budżet projektu minus koszt razem. Procent to marża podzielona przez budżet. Bez ustawionego budżetu nie ma czego porównywać, więc pole zostaje puste."
           tone={
             summary.marginGrosze == null
               ? "muted"
@@ -125,8 +150,28 @@ export function ProjectCosts({
             <tr className="border-b bg-muted/30 text-xs text-muted-foreground">
               <th className="p-2.5 text-left font-medium">Osoba</th>
               <th className="p-2.5 text-left font-medium">Okres</th>
-              <th className="p-2.5 text-right font-medium">FTE</th>
-              <th className="p-2.5 text-right font-medium">Godziny</th>
+              <th className="p-2.5 text-right font-medium">
+                <span className="flex items-center justify-end gap-1.5">
+                  FTE
+                  <InfoHint label="Jak liczymy: FTE">
+                    Zaangażowanie z przydziału tej osoby na tej roli. 1.00 to
+                    pełny etat przez cały okres przydziału.
+                  </InfoHint>
+                </span>
+              </th>
+              <th className="p-2.5 text-right font-medium">
+                <span className="flex items-center justify-end gap-1.5">
+                  Godziny
+                  <InfoHint label="Jak liczymy: Godziny">
+                    Suma po miesiącach przydziału: FTE × liczba dni roboczych
+                    w danym miesiącu × 8 h. Dni robocze to poniedziałki–piątki
+                    minus dni ustawowo wolne, także te ruchome, jak Poniedziałek
+                    Wielkanocny czy Boże Ciało. Dlatego ta sama wartość FTE daje
+                    inną liczbę godzin w styczniu i w lipcu. Urlopy i zwolnienia
+                    nie są tu uwzględniane.
+                  </InfoHint>
+                </span>
+              </th>
               <th className="p-2.5 text-right font-medium">Koszt</th>
             </tr>
           </thead>
@@ -265,18 +310,25 @@ function Tile({
   label,
   value,
   hint,
+  explain,
   strong,
   tone = "default",
 }: {
   label: string;
   value: string;
+  /** Krótki dopisek pod kwotą (np. „brak budżetu”). */
   hint?: string;
+  /** Wyjaśnienie w dymku: skąd bierze się kwota. */
+  explain?: ReactNode;
   strong?: boolean;
   tone?: "default" | "good" | "bad" | "muted";
 }) {
   return (
     <div className="rounded-lg border bg-card p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {label}
+        {explain && <InfoHint label={`Jak liczymy: ${label}`}>{explain}</InfoHint>}
+      </div>
       <div
         className={cn(
           "mt-1 tabular-nums",

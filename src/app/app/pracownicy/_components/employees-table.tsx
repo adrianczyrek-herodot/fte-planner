@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { isOverAllocated } from "@/lib/fte";
+import { InfoHint } from "@/components/info-hint";
 import { EmployeeRowActions } from "./employee-row-actions";
 
 type DictItem = { id: string; name: string };
@@ -72,9 +73,28 @@ export function EmployeesTable({
           <TableRow>
             <TableHead>Imię i nazwisko</TableHead>
             <TableHead>Stanowisko</TableHead>
-            <TableHead>Kompetencje</TableHead>
+            <TableHead>
+              <span className="flex items-center gap-1.5">
+                Kompetencje
+                <InfoHint label="Skąd pochodzą kompetencje">
+                  Ze słownika globalnego, wspólnego dla całej aplikacji. Listę
+                  edytujesz w Ustawieniach, a przypisujesz ją osobie w formularzu
+                  pracownika.
+                </InfoHint>
+              </span>
+            </TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Obciążenie</TableHead>
+            <TableHead>
+              <span className="flex items-center gap-1.5">
+                Obciążenie
+                <InfoHint label="Jak liczymy: Obciążenie">
+                  Suma FTE ze wszystkich przydziałów tej osoby obejmujących
+                  bieżący miesiąc. 1.00 to pełny etat — powyżej tej wartości
+                  liczba robi się czerwona. Kolumna nie zależy od filtrów
+                  wyszukiwania.
+                </InfoHint>
+              </span>
+            </TableHead>
             <TableHead className="w-0">Akcje</TableHead>
           </TableRow>
         </TableHeader>

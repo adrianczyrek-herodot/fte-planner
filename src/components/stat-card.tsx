@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { InfoHint } from "@/components/info-hint";
 
 // Kafelek KPI: liczba + etykieta. Kolor niesie tylko ikona (akcent), a wariant
 // "warn" podświetla wartość semantycznie, gdy jest > 0 (np. przeciążenia).
@@ -9,18 +11,24 @@ export function StatCard({
   value,
   icon: Icon,
   tone = "default",
+  hint,
 }: {
   label: string;
   value: number | string;
   icon: LucideIcon;
   tone?: "default" | "warn";
+  /** Skąd bierze się ta liczba i jak jest liczona. */
+  hint?: ReactNode;
 }) {
   const alert = tone === "warn" && Number(value) > 0;
 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+          {label}
+          {hint && <InfoHint label={`Jak liczymy: ${label}`}>{hint}</InfoHint>}
+        </span>
         <span
           className={cn(
             "flex size-9 items-center justify-center rounded-lg",

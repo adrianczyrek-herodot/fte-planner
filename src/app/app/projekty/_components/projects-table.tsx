@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import {
   getProjectDueStatus,
@@ -48,8 +49,26 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
             <TableHead>Data rozpoczęcia</TableHead>
             <TableHead>Data zakończenia</TableHead>
             <TableHead>Budżet</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Przypisani</TableHead>
+            <TableHead>
+              <span className="flex items-center gap-1.5">
+                Status
+                <InfoHint label="Jak liczymy: Status">
+                  Wynika wyłącznie z daty zakończenia: data dzisiejsza lub
+                  przyszła to „Przed terminem”, przeszła — „Po terminie”.
+                  Nie ma tu żadnej informacji o postępie prac ani o tym, czy
+                  projekt faktycznie się zakończył.
+                </InfoHint>
+              </span>
+            </TableHead>
+            <TableHead>
+              <span className="flex items-center gap-1.5">
+                Przypisani
+                <InfoHint label="Jak liczymy: Przypisani">
+                  Liczba różnych osób obsadzonych na rolach tego projektu, w
+                  całym jego okresie. Jedna osoba na dwóch rolach liczy się raz.
+                </InfoHint>
+              </span>
+            </TableHead>
             <TableHead>Załączniki</TableHead>
             <TableHead className="w-0">Akcje</TableHead>
           </TableRow>

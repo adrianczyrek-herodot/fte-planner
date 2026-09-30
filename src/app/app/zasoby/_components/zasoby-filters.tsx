@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { InfoHint } from "@/components/info-hint";
 import {
   Select,
   SelectContent,
@@ -56,6 +57,16 @@ export function ZasobyFilters({
           <SelectItem value="over">Przeciążeni (&gt; 1 FTE)</SelectItem>
         </SelectContent>
       </Select>
+
+      <InfoHint label="Jak działają filtry">
+        Zakres liczy się od dziś: kwartał zaczyna się od pierwszego miesiąca
+        bieżącego kwartału (może już częściowo minąć), a pół roku to sześć
+        miesięcy licząc od bieżącego. Filtr dostępności patrzy na
+        <strong> którykolwiek</strong> miesiąc zakresu, nie na cały: „Dostępni”
+        to osoby mające choć jeden miesiąc poniżej pełnego etatu, a
+        „Przeciążeni” — choć jeden powyżej. Ta sama osoba może więc spełniać
+        oba warunki naraz.
+      </InfoHint>
 
       {skills.length > 0 && (
         <Select

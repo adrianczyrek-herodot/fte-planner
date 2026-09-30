@@ -69,6 +69,7 @@ export default async function AppDashboardPage() {
             label={`Twoje obciążenie (${formatMonthLabel(currentMonth)})`}
             value={String(Number(thisMonthFte.toFixed(2)))}
             icon={Gauge}
+            hint="Suma FTE ze wszystkich Twoich przydziałów obejmujących ten miesiąc. 1.00 to pełny etat, więc wartość powyżej oznacza zaplanowanie ponad dostępność."
           />
         </div>
 
@@ -160,18 +161,30 @@ export default async function AppDashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Projekty" value={projectCount} icon={FolderKanban} />
-        <StatCard label="Pracownicy" value={employeeCount} icon={Users} />
+        <StatCard
+          label="Projekty"
+          value={projectCount}
+          icon={FolderKanban}
+          hint="Wszystkie projekty w systemie, niezależnie od statusu i dat — również zakończone i jeszcze nierozpoczęte."
+        />
+        <StatCard
+          label="Pracownicy"
+          value={employeeCount}
+          icon={Users}
+          hint="Tylko osoby o statusie „Aktywny”. Konta oczekujące na akceptację i nieaktywne nie są liczone."
+        />
         <StatCard
           label="Przydziały (ten miesiąc)"
           value={assignmentCount}
           icon={ClipboardList}
+          hint={`Liczba przydziałów obejmujących ${formatMonthLabel(currentMonth)} — czyli takich, których okres zaczyna się nie później i kończy nie wcześniej niż ten miesiąc. Jedna osoba na dwóch projektach daje dwa przydziały.`}
         />
         <StatCard
           label="Przeciążeni (ten miesiąc)"
           value={overloadedCount}
           icon={AlertTriangle}
           tone="warn"
+          hint={`Liczba osób, u których suma FTE ze wszystkich przydziałów w ${formatMonthLabel(currentMonth)} przekracza 1.00, czyli pełny etat. Liczymy osoby, nie przydziały.`}
         />
       </div>
 
