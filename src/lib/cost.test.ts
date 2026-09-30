@@ -28,6 +28,36 @@ describe("workingDaysInMonth", () => {
     // Luty 2028 ma 29 dni i zaczyna się we wtorek → 21 dni roboczych.
     expect(workingDaysInMonth("2028-02")).toBe(21);
   });
+
+  it("odejmuje dni ustawowo wolne wypadające w dzień roboczy", () => {
+    // Styczeń 2026: 22 dni pon–pt, minus Nowy Rok (czwartek) i Trzech Króli
+    // (wtorek) → 20.
+    expect(workingDaysInMonth("2026-01")).toBe(20);
+    // Maj 2026: 21 dni pon–pt, minus 1 maja (piątek); 3 maja to niedziela → 20.
+    expect(workingDaysInMonth("2026-05")).toBe(20);
+    // Listopad 2026: 21 dni pon–pt, minus 11 listopada (środa);
+    // Wszystkich Świętych wypada w niedzielę → 20.
+    expect(workingDaysInMonth("2026-11")).toBe(20);
+  });
+
+  it("uwzględnia święta ruchome", () => {
+    // Kwiecień 2026: 22 dni pon–pt, minus Poniedziałek Wielkanocny → 21.
+    expect(workingDaysInMonth("2026-04")).toBe(21);
+    // Czerwiec 2026: 22 dni pon–pt, minus Boże Ciało (czwartek) → 21.
+    expect(workingDaysInMonth("2026-06")).toBe(21);
+  });
+
+  it("nie odejmuje świąt wypadających w weekend", () => {
+    // 15 sierpnia 2026 to sobota — liczba dni roboczych się nie zmienia.
+    expect(workingDaysInMonth("2026-08")).toBe(21);
+  });
+
+  it("traktuje Wigilię jako wolną dopiero od 2025 roku", () => {
+    // Grudzień 2024: 22 dni pon–pt, minus 25 i 26 grudnia → 20.
+    expect(workingDaysInMonth("2024-12")).toBe(20);
+    // Grudzień 2025: 23 dni pon–pt, minus 24, 25 i 26 grudnia → 20.
+    expect(workingDaysInMonth("2025-12")).toBe(20);
+  });
 });
 
 describe("hoursInMonth", () => {

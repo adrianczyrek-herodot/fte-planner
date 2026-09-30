@@ -5,22 +5,30 @@
 //
 // 1. STAWKA JEST GODZINOWA. Ponieważ obsada ma granulację miesięczną, koszt
 //    wymaga przelicznika „ile godzin pracy ma 1.0 FTE w danym miesiącu".
-//    Liczymy go z dni roboczych (poniedziałek–piątek) razy osiem godzin.
-//    Stała liczba godzin dla każdego miesiąca byłaby prostsza, ale zawyżałaby
-//    luty i zaniżała lipiec — a przy stawkach to realna różnica w kwocie.
-//    Świadome uproszczenie pierwszej wersji: NIE odejmujemy świąt. Gdy będą
-//    potrzebne, wchodzą jako słownik dat i jedna odejmowana wartość poniżej.
+//    Liczymy go z dni roboczych (poniedziałek–piątek, bez dni ustawowo wolnych)
+//    razy osiem godzin. Stała liczba godzin dla każdego miesiąca byłaby
+//    prostsza, ale zawyżałaby luty i zaniżała lipiec — a przy stawkach to
+//    realna różnica w kwocie. Kalendarz świąt siedzi w `@/lib/holidays`.
+//
+//    Czego wciąż NIE uwzględniamy: urlopów, zwolnień i innych nieobecności
+//    konkretnej osoby. To wymaga danych, których aplikacja dziś nie zbiera —
+//    wejdą naturalnie razem z warstwą rzeczywistego czasu pracy.
 //
 // 2. PIENIĄDZE LICZYMY W GROSZACH, na liczbach całkowitych. Marża jest różnicą
 //    dużych kwot, więc błędy zaokrągleń z liczb zmiennoprzecinkowych by się w
 //    niej kumulowały. Zaokrąglamy tylko na wyjściu.
 
+import { workingDayHolidaysInMonth } from "@/lib/holidays";
 import { monthsBetween } from "@/lib/staffing";
 
 /** Godziny pracy w jednym dniu roboczym dla 1.0 FTE. */
 export const HOURS_PER_WORKING_DAY = 8;
 
-/** Liczba dni roboczych (pon–pt) w miesiącu "YYYY-MM". */
+/**
+ * Liczba dni roboczych w miesiącu "YYYY-MM": dni od poniedziałku do piątku
+ * pomniejszone o dni ustawowo wolne od pracy, które w taki dzień wypadają.
+ * Święto w sobotę lub niedzielę nic nie zmienia, bo weekendu i tak nie liczymy.
+ */
 export function workingDaysInMonth(month: string): number {
   const [year, m] = month.split("-").map(Number);
   const daysInMonth = new Date(Date.UTC(year, m, 0)).getUTCDate();
@@ -30,7 +38,7 @@ export function workingDaysInMonth(month: string): number {
     const weekday = new Date(Date.UTC(year, m - 1, day)).getUTCDay();
     if (weekday !== 0 && weekday !== 6) count++;
   }
-  return count;
+  return count - workingDayHolidaysInMonth(month).length;
 }
 
 /** Godziny pracy dla 1.0 FTE w miesiącu "YYYY-MM". */
