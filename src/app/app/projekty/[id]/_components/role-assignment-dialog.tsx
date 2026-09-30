@@ -34,8 +34,8 @@ type Employee = {
 type Assignment = {
   id: string;
   userId: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: string;
+  endDate: string;
   fte: string;
 };
 
@@ -50,7 +50,7 @@ export function RoleAssignmentDialog({
   employees: Employee[];
   assignment?: Assignment;
   trigger: React.ReactNode;
-  defaultRange?: { startMonth: string; endMonth: string };
+  defaultRange?: { startDate: string; endDate: string };
 }) {
   const [open, setOpen] = useState(false);
   const action = createOrUpdateAssignment.bind(
@@ -108,29 +108,29 @@ export function RoleAssignmentDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor={`startMonth-${projectRoleId}`}>Od (miesiąc)</Label>
+              <Label htmlFor={`startDate-${projectRoleId}`}>Od (dzień)</Label>
               <Input
-                id={`startMonth-${projectRoleId}`}
-                name="startMonth"
-                type="month"
-                defaultValue={assignment?.startMonth ?? defaultRange?.startMonth}
+                id={`startDate-${projectRoleId}`}
+                name="startDate"
+                type="date"
+                defaultValue={assignment?.startDate ?? defaultRange?.startDate}
                 required
               />
-              {state?.errors?.startMonth && (
-                <p className="text-sm text-destructive">{state.errors.startMonth[0]}</p>
+              {state?.errors?.startDate && (
+                <p className="text-sm text-destructive">{state.errors.startDate[0]}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor={`endMonth-${projectRoleId}`}>Do (miesiąc)</Label>
+              <Label htmlFor={`endDate-${projectRoleId}`}>Do (dzień)</Label>
               <Input
-                id={`endMonth-${projectRoleId}`}
-                name="endMonth"
-                type="month"
-                defaultValue={assignment?.endMonth ?? defaultRange?.endMonth}
+                id={`endDate-${projectRoleId}`}
+                name="endDate"
+                type="date"
+                defaultValue={assignment?.endDate ?? defaultRange?.endDate}
                 required
               />
-              {state?.errors?.endMonth && (
-                <p className="text-sm text-destructive">{state.errors.endMonth[0]}</p>
+              {state?.errors?.endDate && (
+                <p className="text-sm text-destructive">{state.errors.endDate[0]}</p>
               )}
             </div>
           </div>

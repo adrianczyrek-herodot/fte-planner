@@ -9,7 +9,7 @@
 import { Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
 
 import { deleteAssignment, deleteProjectRole } from "@/app/actions/staffing";
-import { formatMonthLabel } from "@/lib/timeline";
+import { formatMonthLabel, formatYmdRange } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +21,8 @@ type Assignment = {
   id: string;
   userId: string;
   name: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: string;
+  endDate: string;
   fte: string;
   isConflict: boolean;
 };
@@ -38,8 +38,8 @@ type Coverage = {
 type Role = {
   id: string;
   position: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: string;
+  endDate: string;
   positionId: string;
   requiredFte: string;
   requiredPeople: string;
@@ -119,7 +119,7 @@ export function StaffingSection({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{role.position}</span>
                   <span className="text-sm text-muted-foreground">
-                    {role.startMonth} – {role.endMonth} · {fmt(role.requiredFte)} FTE
+                    {formatYmdRange(role.startDate, role.endDate)} · {fmt(role.requiredFte)} FTE
                   </span>
                   <Badge
                     variant={statusMeta[role.status].variant}
@@ -168,8 +168,8 @@ export function StaffingSection({
                     role={{
                       id: role.id,
                       positionId: role.positionId,
-                      startMonth: role.startMonth,
-                      endMonth: role.endMonth,
+                      startDate: role.startDate,
+                      endDate: role.endDate,
                       requiredFte: role.requiredFte,
                       requiredPeople: role.requiredPeople,
                     }}
@@ -237,7 +237,7 @@ export function StaffingSection({
                       <div className="min-w-0">
                         <div className="truncate font-medium">{a.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {a.startMonth} – {a.endMonth}
+                          {formatYmdRange(a.startDate, a.endDate)}
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
@@ -250,8 +250,8 @@ export function StaffingSection({
                           assignment={{
                             id: a.id,
                             userId: a.userId,
-                            startMonth: a.startMonth,
-                            endMonth: a.endMonth,
+                            startDate: a.startDate,
+                            endDate: a.endDate,
                             fte: a.fte,
                           }}
                           trigger={
@@ -285,7 +285,7 @@ export function StaffingSection({
                 <RoleAssignmentDialog
                   projectRoleId={role.id}
                   employees={employees}
-                  defaultRange={{ startMonth: role.startMonth, endMonth: role.endMonth }}
+                  defaultRange={{ startDate: role.startDate, endDate: role.endDate }}
                   trigger={
                     <Button variant="ghost" size="sm">
                       <UserPlus />

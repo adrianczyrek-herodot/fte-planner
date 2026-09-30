@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { monthBounds } from "@/lib/period";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
 import { sumFte } from "@/lib/fte";
@@ -30,6 +31,7 @@ export default async function EmployeesPage({
 
   // Bieżący miesiąc w formacie "YYYY-MM" — do kolumny "Obciążenie".
   const currentMonth = new Date().toISOString().slice(0, 7);
+  const { first: monthStart, last: monthEnd } = monthBounds(currentMonth);
 
   const [employees, approvedCount, loads, skillRows, positions] = await Promise.all([
     prisma.user.findMany({
@@ -68,8 +70,8 @@ export default async function EmployeesPage({
     // Przydziały nachodzące na bieżący miesiąc — do kolumny "Obciążenie".
     prisma.assignment.findMany({
       where: {
-        startMonth: { lte: currentMonth },
-        endMonth: { gte: currentMonth },
+        startDate: { lte: monthEnd },
+        endDate: { gte: monthStart },
       },
       select: { userId: true, fte: true },
     }),

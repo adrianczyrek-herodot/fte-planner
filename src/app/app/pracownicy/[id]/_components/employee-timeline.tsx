@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 
 type Assignment = {
   id: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: Date;
+  endDate: Date;
   fte: number;
   isConflict: boolean;
   rolePosition: string;

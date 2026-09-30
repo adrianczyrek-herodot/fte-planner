@@ -146,9 +146,11 @@ model ProjectRole {
   project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   positionId  String // stanowisko ze słownika globalnego
   position    Position @relation(fields: [positionId], references: [id])
-  startMonth  String  @db.VarChar(7) // "YYYY-MM"
-  endMonth    String  @db.VarChar(7)
-  requiredFte Decimal @db.Decimal(4, 2)
+  // Okres z dokładnością do dnia. Wcześniej były to całe miesiące ("YYYY-MM"),
+  // co rozjeżdżało się z datami projektu, które od początku są dzienne.
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  requiredFte Decimal  @db.Decimal(4, 2)
 
   // Ilu ludzi ma stanąć na tej roli. Pokrycie liczymy z FTE, ale liczba osób
   // jest pilnowana osobno — 2.0 FTE można obsadzić dwiema osobami na całość
@@ -184,11 +186,13 @@ model Assignment {
   projectRoleId String
   projectRole   ProjectRole @relation(fields: [projectRoleId], references: [id], onDelete: Cascade)
 
-  startMonth String  @db.VarChar(7) // "YYYY-MM"
-  endMonth   String  @db.VarChar(7)
-  fte        Decimal @db.Decimal(4, 2)
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  fte       Decimal  @db.Decimal(4, 2)
 
-  // Wyliczane: w którymkolwiek z pokrytych miesięcy suma FTE usera > 1.0.
+  // Wyliczane: w którymkolwiek POKRYTYM DNIU suma FTE usera > 1.0. Wcześniej
+  // liczone per miesiąc — przy okresach dziennych miesięczna suma zawyżała
+  // konflikt dla osób, które po prostu zmieniały projekt w połowie miesiąca.
   isConflict Boolean @default(false)
 
   createdAt DateTime @default(now())

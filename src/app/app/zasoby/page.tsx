@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
 import { isOverAllocated, sumFte } from "@/lib/fte";
-import { monthsBetween } from "@/lib/staffing";
+import { fteShareInMonth, monthBounds, monthsCovered } from "@/lib/period";
 import { formatMonthLabel, ym } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -81,22 +81,24 @@ export default async function ZasobyPage({
     // Przydziały nachodzące na wybrany zakres (rozbijamy je na miesiące).
     prisma.assignment.findMany({
       where: {
-        startMonth: { lte: months[months.length - 1] },
-        endMonth: { gte: months[0] },
+        startDate: { lte: monthBounds(months[months.length - 1]).last },
+        endDate: { gte: monthBounds(months[0]).first },
       },
-      select: { userId: true, startMonth: true, endMonth: true, fte: true },
+      select: { userId: true, startDate: true, endDate: true, fte: true },
     }),
     prisma.skill.findMany({ orderBy: { name: "asc" }, select: { name: true } }),
   ]);
 
+  // Udział w miesiącu, nie surowe FTE: przydział na pół lipca liczy się w
+  // lipcu za połowę, bo siatka odpowiada na pytanie „ile pracy w tym miesiącu".
   const monthSet = new Set(months);
-  const loadMap = new Map<string, number[]>(); // "userId:month" → lista FTE
+  const loadMap = new Map<string, number[]>(); // "userId:month" → lista udziałów
   for (const a of loads) {
-    for (const m of monthsBetween(a.startMonth, a.endMonth)) {
+    for (const m of monthsCovered(a.startDate, a.endDate)) {
       if (!monthSet.has(m)) continue;
       const key = `${a.userId}:${m}`;
       const list = loadMap.get(key) ?? [];
-      list.push(Number(a.fte));
+      list.push(fteShareInMonth(Number(a.fte), a.startDate, a.endDate, m));
       loadMap.set(key, list);
     }
   }
@@ -148,8 +150,9 @@ export default async function ZasobyPage({
                   <span className="flex items-center gap-1.5">
                     Pracownik
                     <InfoHint label="Jak czytać tę siatkę">
-                      Każda komórka to suma FTE tej osoby w danym miesiącu,
-                      policzona ze wszystkich jej przydziałów. Kreska oznacza
+                      Każda komórka to udział tej osoby w danym miesiącu:
+                      przydział pokrywający pół miesiąca liczy się za pół, bo
+                      pytanie brzmi „ile pracy w tym miesiącu”. Kreska oznacza
                       brak zaangażowania, kolor niebieski dokładnie pełny etat
                       (1.00), a czerwony wartość powyżej 1.00, czyli
                       przeciążenie. Na liście są wyłącznie osoby o statusie

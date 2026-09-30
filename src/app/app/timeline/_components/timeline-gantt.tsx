@@ -30,8 +30,6 @@ type Person = {
   name: string;
   rolePosition: string;
   fte: number;
-  startMonth: string;
-  endMonth: string;
   startDay: number;
   endDay: number;
   isConflict: boolean;
@@ -492,7 +490,7 @@ export function TimelineGantt({
                           : "bg-primary/25 text-primary"
                       )}
                       style={{ left, width: barW, height: CHILD_H - 16 }}
-                      title={`${p.name} — ${p.rolePosition}: ${p.startMonth} – ${p.endMonth}, ${p.fte.toFixed(2)} FTE`}
+                      title={`${p.name} — ${p.rolePosition}: ${formatDayRange(p.startDay, p.endDay)}, ${p.fte.toFixed(2)} FTE`}
                     >
                       <span className="truncate">{p.rolePosition}</span>
                       <span className="shrink-0 tabular-nums">{p.fte.toFixed(2)}</span>

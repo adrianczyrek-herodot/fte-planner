@@ -45,8 +45,8 @@ it("anonimizacja usuwa dane osobowe, ale zostawia przydziały", async () => {
     data: {
       projectId: project.id,
       positionId: position.id,
-      startMonth: "2026-01",
-      endMonth: "2026-03",
+      startDate: new Date(Date.UTC(2026, 0, 1)),
+      endDate: new Date(Date.UTC(2026, 2, 31)),
       requiredFte: 1,
     },
   });
@@ -54,8 +54,8 @@ it("anonimizacja usuwa dane osobowe, ale zostawia przydziały", async () => {
     data: {
       userId: user.id,
       projectRoleId: role.id,
-      startMonth: "2026-01",
-      endMonth: "2026-03",
+      startDate: new Date(Date.UTC(2026, 0, 1)),
+      endDate: new Date(Date.UTC(2026, 2, 31)),
       fte: 1,
     },
   });
@@ -96,7 +96,7 @@ it("anonimizacja usuwa dane osobowe, ale zostawia przydziały", async () => {
   const przydzialy = await prisma.assignment.findMany({ where: { userId: user.id } });
   expect(przydzialy).toHaveLength(1);
   expect(Number(przydzialy[0].fte)).toBe(1);
-  expect(przydzialy[0].startMonth).toBe("2026-01");
+  expect(przydzialy[0].startDate.toISOString().slice(0, 10)).toBe("2026-01-01");
 });
 
 it("e-mail zanonimizowanego nie koliduje z drugim zanonimizowanym", async () => {

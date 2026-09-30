@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
 import { roleLabels } from "@/lib/permissions";
 import { employeeWorkload, monthsBetween } from "@/lib/staffing";
-import { formatMonthLabel, ym } from "@/lib/timeline";
+import { formatMonthLabel, ym, ymd, formatYmdRange } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -74,11 +74,11 @@ export default async function EmployeeDetailPage({
       role: true,
       status: true,
       assignments: {
-        orderBy: [{ startMonth: "asc" }],
+        orderBy: [{ startDate: "asc" }],
         select: {
           id: true,
-          startMonth: true,
-          endMonth: true,
+          startDate: true,
+          endDate: true,
           fte: true,
           isConflict: true,
           projectRole: {
@@ -98,8 +98,8 @@ export default async function EmployeeDetailPage({
 
   const assignments = employee.assignments.map((a) => ({
     id: a.id,
-    startMonth: a.startMonth,
-    endMonth: a.endMonth,
+    startDate: a.startDate,
+    endDate: a.endDate,
     fte: Number(a.fte),
     isConflict: a.isConflict,
     rolePosition: a.projectRole.position.name,
@@ -138,7 +138,7 @@ export default async function EmployeeDetailPage({
           value={String(Number((thisMonth?.total ?? 0).toFixed(2)))}
           icon={Gauge}
           tone={thisMonth?.isOverloaded ? "warn" : "default"}
-          hint="Suma FTE ze wszystkich przydziałów tej osoby obejmujących bieżący miesiąc. 1.00 to pełny etat — wartość wyższa oznacza zaplanowanie ponad dostępność."
+          hint="Udział w bieżącym miesiącu: przydział pokrywający tylko część miesiąca liczy się proporcjonalnie do swoich dni roboczych. Przeciążenie wykrywamy osobno, ze szczytu dziennego — dwa tygodnie na 1.5 FTE są widoczne, choć po uśrednieniu na miesiąc wyglądałyby spokojnie."
         />
         <StatCard
           label="Projekty"
@@ -151,7 +151,7 @@ export default async function EmployeeDetailPage({
           value={overloadedMonths.length}
           icon={Gauge}
           tone="warn"
-          hint="Ile miesięcy na osi czasu poniżej ma sumę FTE powyżej 1.00. Oś obejmuje trzy miesiące wstecz i dziewięć w przód od dziś, więc dalsza przyszłość nie jest tu liczona."
+          hint="Ile miesięcy na osi czasu poniżej ma choć jeden dzień roboczy z sumą FTE powyżej 1.00. Oś obejmuje trzy miesiące wstecz i dziewięć w przód od dziś, więc dalsza przyszłość nie jest tu liczona."
         />
       </div>
 
@@ -214,7 +214,7 @@ export default async function EmployeeDetailPage({
                         {a.projectName}
                       </Link>
                       <div className="text-xs text-muted-foreground">
-                        {a.rolePosition} · {a.startMonth} – {a.endMonth}
+                        {a.rolePosition} · {formatYmdRange(ymd(a.startDate), ymd(a.endDate))}
                       </div>
                     </div>
                     <Badge

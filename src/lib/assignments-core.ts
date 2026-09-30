@@ -2,21 +2,21 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { computeAssignmentConflicts } from "@/lib/staffing";
 
 // Przelicza flagę konfliktu dla WSZYSTKICH przydziałów danego pracownika
-// (po wszystkich rolach/projektach), bo przeciążenie liczy się per user+miesiąc.
+// (po wszystkich rolach/projektach), bo przeciążenie liczy się per user+dzień.
 export async function recomputeUserConflicts(
   db: PrismaClient,
   userId: string
 ): Promise<void> {
   const rows = await db.assignment.findMany({
     where: { userId },
-    select: { id: true, startMonth: true, endMonth: true, fte: true },
+    select: { id: true, startDate: true, endDate: true, fte: true },
   });
 
   const flags = computeAssignmentConflicts(
     rows.map((r) => ({
       id: r.id,
-      startMonth: r.startMonth,
-      endMonth: r.endMonth,
+      startDate: r.startDate,
+      endDate: r.endDate,
       fte: Number(r.fte),
     }))
   );

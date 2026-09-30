@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { parseYmd } from "@/lib/timeline";
 import { requireCapability } from "@/app/actions/auth";
 import { recomputeUserConflicts } from "@/lib/assignments-core";
 import {
@@ -43,8 +44,8 @@ export async function createProjectRole(
 
   const v = ProjectRoleSchema.safeParse({
     positionId: formData.get("positionId"),
-    startMonth: formData.get("startMonth"),
-    endMonth: formData.get("endMonth"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
     requiredFte: formData.get("requiredFte"),
     requiredPeople: formData.get("requiredPeople"),
   });
@@ -54,8 +55,8 @@ export async function createProjectRole(
     data: {
       projectId,
       positionId: v.data.positionId,
-      startMonth: v.data.startMonth,
-      endMonth: v.data.endMonth,
+      startDate: parseYmd(v.data.startDate),
+      endDate: parseYmd(v.data.endDate),
       requiredFte: round2(v.data.requiredFte),
       requiredPeople: v.data.requiredPeople,
     },
@@ -76,8 +77,8 @@ export async function updateProjectRole(
 
   const v = ProjectRoleSchema.safeParse({
     positionId: formData.get("positionId"),
-    startMonth: formData.get("startMonth"),
-    endMonth: formData.get("endMonth"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
     requiredFte: formData.get("requiredFte"),
     requiredPeople: formData.get("requiredPeople"),
   });
@@ -87,8 +88,8 @@ export async function updateProjectRole(
     where: { id },
     data: {
       positionId: v.data.positionId,
-      startMonth: v.data.startMonth,
-      endMonth: v.data.endMonth,
+      startDate: parseYmd(v.data.startDate),
+      endDate: parseYmd(v.data.endDate),
       requiredFte: round2(v.data.requiredFte),
       requiredPeople: v.data.requiredPeople,
     },
@@ -132,8 +133,8 @@ export async function createOrUpdateAssignment(
 
   const v = AssignmentSchema.safeParse({
     userId: formData.get("userId"),
-    startMonth: formData.get("startMonth"),
-    endMonth: formData.get("endMonth"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
     fte: formData.get("fte"),
   });
   if (!v.success) return { errors: z.flattenError(v.error).fieldErrors };
@@ -144,7 +145,9 @@ export async function createOrUpdateAssignment(
   });
   if (!role) return { message: "Rola już nie istnieje." };
 
-  const { userId, startMonth, endMonth } = v.data;
+  const { userId } = v.data;
+  const startDate = parseYmd(v.data.startDate);
+  const endDate = parseYmd(v.data.endDate);
   const fte = round2(v.data.fte);
   const affected = new Set<string>([userId]);
 
@@ -157,11 +160,11 @@ export async function createOrUpdateAssignment(
     affected.add(existing.userId);
     await prisma.assignment.update({
       where: { id: assignmentId },
-      data: { userId, startMonth, endMonth, fte },
+      data: { userId, startDate, endDate, fte },
     });
   } else {
     await prisma.assignment.create({
-      data: { projectRoleId, userId, startMonth, endMonth, fte },
+      data: { projectRoleId, userId, startDate, endDate, fte },
     });
   }
 

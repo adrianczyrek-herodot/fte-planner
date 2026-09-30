@@ -1,8 +1,20 @@
 import * as z from "zod";
 
-const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, {
-  error: "Miesiąc w formacie RRRR-MM.",
-});
+// Data dzienna. Sam regex nie odsiewa 31 lutego, więc dokładamy sprawdzenie,
+// czy parser odtworzy dokładnie tę datę, którą dostał.
+const day = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, {
+    error: "Data w formacie RRRR-MM-DD.",
+  })
+  .refine(
+    (value) => {
+      const [y, m, d] = value.split("-").map(Number);
+      const parsed = new Date(Date.UTC(y, m - 1, d));
+      return parsed.getUTCMonth() === m - 1 && parsed.getUTCDate() === d;
+    },
+    { error: "Taka data nie istnieje." }
+  );
 
 // --- Zapotrzebowanie na rolę (ProjectRole) ---------------------------------
 // Puste → null; inaczej dodatnia liczba całkowita.
@@ -20,17 +32,17 @@ const optionalPeople = z.preprocess(
 export const ProjectRoleSchema = z
   .object({
     positionId: z.string().trim().min(1, { error: "Wybierz stanowisko." }),
-    startMonth: month,
-    endMonth: month,
+    startDate: day,
+    endDate: day,
     requiredFte: z.coerce
       .number({ error: "Podaj wymagane FTE." })
       .gt(0, { error: "FTE musi być większe od 0." })
       .max(99, { error: "FTE zbyt duże." }),
     requiredPeople: optionalPeople,
   })
-  .refine((d) => d.startMonth <= d.endMonth, {
-    error: "Miesiąc końcowy nie może być wcześniejszy niż początkowy.",
-    path: ["endMonth"],
+  .refine((d) => d.startDate <= d.endDate, {
+    error: "Data końcowa nie może być wcześniejsza niż początkowa.",
+    path: ["endDate"],
   });
 
 export type ProjectRoleFormState =
@@ -38,8 +50,8 @@ export type ProjectRoleFormState =
       success?: boolean;
       errors?: {
         positionId?: string[];
-        startMonth?: string[];
-        endMonth?: string[];
+        startDate?: string[];
+        endDate?: string[];
         requiredFte?: string[];
         requiredPeople?: string[];
       };
@@ -51,16 +63,16 @@ export type ProjectRoleFormState =
 export const AssignmentSchema = z
   .object({
     userId: z.string().min(1, { error: "Wybierz pracownika." }),
-    startMonth: month,
-    endMonth: month,
+    startDate: day,
+    endDate: day,
     fte: z.coerce
       .number({ error: "Podaj wartość FTE." })
       .gt(0, { error: "FTE musi być większe od 0." })
       .max(1, { error: "Pojedynczy przydział nie może przekraczać 1.00 FTE." }),
   })
-  .refine((d) => d.startMonth <= d.endMonth, {
-    error: "Miesiąc końcowy nie może być wcześniejszy niż początkowy.",
-    path: ["endMonth"],
+  .refine((d) => d.startDate <= d.endDate, {
+    error: "Data końcowa nie może być wcześniejsza niż początkowa.",
+    path: ["endDate"],
   });
 
 export type AssignmentFormState =
@@ -69,8 +81,8 @@ export type AssignmentFormState =
       conflict?: boolean;
       errors?: {
         userId?: string[];
-        startMonth?: string[];
-        endMonth?: string[];
+        startDate?: string[];
+        endDate?: string[];
         fte?: string[];
       };
       message?: string;

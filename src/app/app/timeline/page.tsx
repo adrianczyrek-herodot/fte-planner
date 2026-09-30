@@ -22,15 +22,15 @@ export default async function TimelinePage() {
       endDate: true,
       // Obsada do rozwijania wiersza projektu + flaga konfliktu FTE.
       roles: {
-        orderBy: [{ startMonth: "asc" }, { createdAt: "asc" }],
+        orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
         select: {
           position: { select: { name: true } },
           assignments: {
-            orderBy: [{ startMonth: "asc" }],
+            orderBy: [{ startDate: "asc" }],
             select: {
               id: true,
-              startMonth: true,
-              endMonth: true,
+              startDate: true,
+              endDate: true,
               fte: true,
               isConflict: true,
               userId: true,
@@ -41,19 +41,6 @@ export default async function TimelinePage() {
       },
     },
   });
-
-  // Przydziały mają granulację miesięczną, a pasek projektu dzienną. Pod-paski
-  // osób rozciągamy więc na pełne miesiące: od 1. dnia miesiąca początkowego do
-  // ostatniego dnia miesiąca końcowego. Inaczej wyglądałyby na przesunięte
-  // względem paska projektu.
-  const monthStartDay = (month: string) => {
-    const [y, m] = month.split("-").map(Number);
-    return dayIndex(new Date(Date.UTC(y, m - 1, 1)));
-  };
-  const monthEndDay = (month: string) => {
-    const [y, m] = month.split("-").map(Number);
-    return dayIndex(new Date(Date.UTC(y, m, 0)));
-  };
 
   // Pasek Gantta wymaga obu dat; projekty niekompletne trafiają do tacki.
   const rows = projectsRaw
@@ -71,10 +58,11 @@ export default async function TimelinePage() {
           name: `${a.user.firstName} ${a.user.lastName}`,
           rolePosition: r.position.name,
           fte: Number(a.fte),
-          startMonth: a.startMonth,
-          endMonth: a.endMonth,
-          startDay: monthStartDay(a.startMonth),
-          endDay: monthEndDay(a.endMonth),
+          // Pasek osoby pokrywa się teraz z jej faktycznym okresem, więc nie
+          // trzeba go już rozciągać na pełne miesiące, żeby pasował do paska
+          // projektu.
+          startDay: dayIndex(a.startDate),
+          endDay: dayIndex(a.endDate),
           isConflict: a.isConflict,
         }))
       ),
@@ -98,12 +86,12 @@ export default async function TimelinePage() {
           Timeline
           <InfoHint label="Jak czytać Timeline">
             Jeden wiersz to jeden projekt, a pasek pokrywa jego okres co do dnia.
-            Rozwinięcie wiersza pokazuje obsadzone osoby — ich paski mają jednak
-            granulację miesięczną, bo przydziały są dziś planowane na całe
-            miesiące. Czerwony trójkąt oznacza, że ktoś obsadzony na tym
-            projekcie ma w którymś miesiącu sumę FTE powyżej pełnego etatu;
-            dotyczy to całego jego obłożenia, także z innych projektów.
-            Projekty bez dat trafiają na listę pod wykresem.
+            Rozwinięcie wiersza pokazuje obsadzone osoby — ich paski też są
+            dzienne i pokrywają się dokładnie z okresem przydziału. Czerwony
+            trójkąt oznacza, że ktoś obsadzony na tym projekcie ma w którymś
+            dniu roboczym sumę FTE powyżej pełnego etatu; dotyczy to całego jego
+            obłożenia, także z innych projektów. Projekty bez dat trafiają na
+            listę pod wykresem.
           </InfoHint>
         </h1>
         <p className="text-muted-foreground">

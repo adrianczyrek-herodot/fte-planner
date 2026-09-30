@@ -9,9 +9,10 @@ import {
 } from "lucide-react";
 
 import { getCurrentRole } from "@/app/actions/auth";
+import { monthBounds } from "@/lib/period";
 import { prisma } from "@/lib/prisma";
 import { roleLabels } from "@/lib/permissions";
-import { ym, formatMonthLabel } from "@/lib/timeline";
+import { ym, formatMonthLabel, ymd, formatYmdRange } from "@/lib/timeline";
 import { isOverAllocated, sumFte } from "@/lib/fte";
 import { formatDate, getProjectDueStatus, projectStatusMeta } from "@/lib/project-status";
 import { StatCard } from "@/components/stat-card";
@@ -30,16 +31,19 @@ export default async function AppDashboardPage() {
 
   const now = new Date();
   const currentMonth = ym(now);
+  // Granice bieżącego miesiąca — przydziały są dzienne, więc "ten miesiąc"
+  // znaczy teraz "zakres nachodzący na przedział od pierwszego do ostatniego".
+  const { first: monthStart, last: monthEnd } = monthBounds(currentMonth);
 
   // --- Ograniczony dashboard zwykłego użytkownika ---------------------------
   if (role === "user") {
     const myAssignments = await prisma.assignment.findMany({
-      where: { userId: user.id, endMonth: { gte: currentMonth } },
-      orderBy: [{ startMonth: "asc" }],
+      where: { userId: user.id, endDate: { gte: monthStart } },
+      orderBy: [{ startDate: "asc" }],
       select: {
         id: true,
-        startMonth: true,
-        endMonth: true,
+        startDate: true,
+        endDate: true,
         fte: true,
         isConflict: true,
         projectRole: {
@@ -53,7 +57,7 @@ export default async function AppDashboardPage() {
 
     const thisMonthFte = sumFte(
       myAssignments
-        .filter((a) => a.startMonth <= currentMonth && a.endMonth >= currentMonth)
+        .filter((a) => a.startDate <= monthEnd && a.endDate >= monthStart)
         .map((a) => Number(a.fte))
     );
 
@@ -100,7 +104,7 @@ export default async function AppDashboardPage() {
                         {a.projectRole.project.name}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {a.projectRole.position.name} · {a.startMonth} – {a.endMonth}
+                        {a.projectRole.position.name} · {formatYmdRange(ymd(a.startDate), ymd(a.endDate))}
                       </div>
                     </div>
                     <Badge
@@ -127,8 +131,8 @@ export default async function AppDashboardPage() {
       // Przydziały nachodzące na bieżący miesiąc.
       prisma.assignment.findMany({
         where: {
-          startMonth: { lte: currentMonth },
-          endMonth: { gte: currentMonth },
+          startDate: { lte: monthEnd },
+          endDate: { gte: monthStart },
         },
         select: { userId: true, fte: true },
       }),

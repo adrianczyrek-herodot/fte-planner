@@ -89,7 +89,7 @@ export function EmployeesTable({
               <span className="flex items-center gap-1.5">
                 Obciążenie
                 <InfoHint label="Jak liczymy: Obciążenie">
-                  Suma FTE ze wszystkich przydziałów tej osoby obejmujących
+                  Suma FTE ze wszystkich przydziałów tej osoby nachodzących na
                   bieżący miesiąc. 1.00 to pełny etat — powyżej tej wartości
                   liczba robi się czerwona. Kolumna nie zależy od filtrów
                   wyszukiwania.

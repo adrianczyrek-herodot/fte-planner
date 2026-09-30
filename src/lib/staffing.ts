@@ -1,6 +1,21 @@
 // Czysta logika staffingu (zapotrzebowanie na role + obsada w okresach).
 // Bez zależności od bazy/Next — testowalna jednostkowo.
+//
+// Okresy są dzienne, ale raportujemy w miesiącach, więc w tym pliku żyją obok
+// siebie dwie miary i warto je rozróżniać:
+//
+//  * UDZIAŁ W MIESIĄCU (`fteShareInMonth`) — ile etatu przydział zajmuje w skali
+//    całego miesiąca. 1.0 FTE przez połowę lipca to w lipcu 0.5. Tym liczymy
+//    pokrycie roli, siatkę obłożenia i koszt, bo te pytania dotyczą sumy pracy.
+//
+//  * SZCZYT DZIENNY (`peak`) — najwyższa suma FTE w pojedynczym dniu roboczym.
+//    Tym wykrywamy przeciążenie, bo człowiek przeciążony przez dwa tygodnie
+//    jest przeciążony naprawdę, nawet jeśli po uśrednieniu na miesiąc wychodzi
+//    spokojne 0.8.
+
 import { isOverAllocated, sumFte } from "@/lib/fte";
+import { fteShareInMonth, isWorkingDay, monthsCovered } from "@/lib/period";
+import { dateFromDayIndex, dayIndex } from "@/lib/timeline";
 
 function ymToIndex(month: string): number {
   const [y, m] = month.split("-").map(Number);
@@ -25,47 +40,78 @@ export function monthsBetween(start: string, end: string): string[] {
 
 export type PeriodFte = {
   id: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: Date;
+  endDate: Date;
   fte: number;
 };
 
+/** Najwyższa suma FTE w pojedynczym dniu roboczym zakresu [from, to]. */
+export function peakDailyFte(
+  assignments: { startDate: Date; endDate: Date; fte: number }[],
+  from: Date,
+  to: Date
+): number {
+  const start = dayIndex(from);
+  const end = dayIndex(to);
+  const spans = assignments.map((a) => ({
+    from: dayIndex(a.startDate),
+    to: dayIndex(a.endDate),
+    fte: a.fte,
+  }));
+
+  let peak = 0;
+  for (let d = start; d <= end; d++) {
+    // Weekendy i dni ustawowo wolne pomijamy — przydział kończący się w piątek
+    // i kolejny zaczynający się w poniedziałek nie nachodzą na siebie w żadnym
+    // dniu, w którym ktokolwiek pracuje.
+    if (!isWorkingDay(dateFromDayIndex(d))) continue;
+
+    const total = sumFte(
+      spans.filter((s) => s.from <= d && d <= s.to).map((s) => s.fte)
+    );
+    if (total > peak) peak = total;
+  }
+  return peak;
+}
+
 /**
  * Dla WSZYSTKICH przydziałów jednego pracownika: przydział jest w konflikcie,
- * jeśli w którymkolwiek z pokrytych miesięcy jego łączne FTE > 1.0.
+ * jeśli w którymkolwiek pokrytym DNIU ROBOCZYM jego łączne FTE przekracza 1.0.
  * Zwraca mapę id → isConflict.
  */
 export function computeAssignmentConflicts(
   assignments: PeriodFte[]
 ): Map<string, boolean> {
-  // FTE per miesiąc (lista wartości, by użyć odpornej sumy).
-  const perMonth = new Map<string, number[]>();
-  for (const a of assignments) {
-    for (const m of monthsBetween(a.startMonth, a.endMonth)) {
-      const list = perMonth.get(m) ?? [];
-      list.push(a.fte);
-      perMonth.set(m, list);
-    }
+  const result = new Map(assignments.map((a) => [a.id, false]));
+  if (assignments.length === 0) return result;
+
+  const spans = assignments.map((a) => ({
+    id: a.id,
+    from: dayIndex(a.startDate),
+    to: dayIndex(a.endDate),
+    fte: a.fte,
+  }));
+
+  const first = Math.min(...spans.map((s) => s.from));
+  const last = Math.max(...spans.map((s) => s.to));
+
+  for (let d = first; d <= last; d++) {
+    if (!isWorkingDay(dateFromDayIndex(d))) continue;
+
+    const covering = spans.filter((s) => s.from <= d && d <= s.to);
+    if (!isOverAllocated(sumFte(covering.map((s) => s.fte)))) continue;
+
+    // Konflikt jest cechą całej grupy nachodzącej na siebie tego dnia, a nie
+    // tylko ostatnio dodanego przydziału.
+    for (const s of covering) result.set(s.id, true);
   }
 
-  const monthOver = new Map<string, boolean>();
-  for (const [m, ftes] of perMonth) {
-    monthOver.set(m, isOverAllocated(sumFte(ftes)));
-  }
-
-  const result = new Map<string, boolean>();
-  for (const a of assignments) {
-    const conflict = monthsBetween(a.startMonth, a.endMonth).some(
-      (m) => monthOver.get(m) === true
-    );
-    result.set(a.id, conflict);
-  }
   return result;
 }
 
 export type RolePeriod = {
-  startMonth: string;
-  endMonth: string;
+  startDate: Date;
+  endDate: Date;
   requiredFte: number;
   /** Ilu ludzi ma obsadzić rolę. null = nie zadeklarowano. */
   requiredPeople?: number | null;
@@ -80,8 +126,8 @@ export type PeopleCoverage = {
 
 /**
  * Ile osób stoi na roli. Liczymy unikalne osoby w całym okresie roli, nie w
- * każdym miesiącu osobno — pytanie „ilu ludzi mamy na tej roli" dotyczy składu
- * zespołu, a nie obsady konkretnego miesiąca (tę pokazuje pokrycie FTE).
+ * każdym dniu osobno — pytanie „ilu ludzi mamy na tej roli" dotyczy składu
+ * zespołu, a nie obsady konkretnego dnia (tę pokazuje pokrycie FTE).
  */
 export function peopleCoverage(
   requiredPeople: number | null | undefined,
@@ -132,26 +178,34 @@ function round2(value: number): number {
 }
 
 /**
- * Pokrycie roli w każdym miesiącu jej okresu: ile wymagane, ile obsadzone,
- * ile brakuje (luka) i ile jest nad zapotrzebowanie (nadmiar). Obsada = suma
- * FTE przydziałów pokrywających miesiąc.
+ * Pokrycie roli w każdym miesiącu jej okresu. Zapotrzebowanie i obsada są
+ * liczone tą samą miarą — udziałem w miesiącu — więc rola wymagająca 1.0 FTE
+ * przez pół marca potrzebuje w marcu 0.5 i tyle samo trzeba obsadzić.
  */
 export function roleCoverage(
   role: RolePeriod,
   assignments: PeriodFte[]
 ): CoverageMonth[] {
-  return monthsBetween(role.startMonth, role.endMonth).map((month) => {
-    const assigned = sumFte(
-      assignments
-        .filter((a) => monthsBetween(a.startMonth, a.endMonth).includes(month))
-        .map((a) => a.fte)
+  return monthsCovered(role.startDate, role.endDate).map((month) => {
+    const required = fteShareInMonth(
+      role.requiredFte,
+      role.startDate,
+      role.endDate,
+      month
     );
+    const assigned = round2(
+      assignments.reduce(
+        (sum, a) => sum + fteShareInMonth(a.fte, a.startDate, a.endDate, month),
+        0
+      )
+    );
+
     return {
       month,
-      required: role.requiredFte,
+      required,
       assigned,
-      gap: Math.max(0, round2(role.requiredFte - assigned)),
-      surplus: Math.max(0, round2(assigned - role.requiredFte)),
+      gap: Math.max(0, round2(required - assigned)),
+      surplus: Math.max(0, round2(assigned - required)),
     };
   });
 }
@@ -187,14 +241,17 @@ export function roleCoverageSummary(
 
 export type WorkloadRow = {
   id: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: Date;
+  endDate: Date;
   fte: number;
 };
 
 export type WorkloadMonth = {
   month: string;
+  /** Udział w miesiącu: ile etatu zajmuje obsada w skali całego miesiąca. */
   total: number;
+  /** Najwyższa suma FTE w pojedynczym dniu roboczym tego miesiąca. */
+  peak: number;
   isOverloaded: boolean;
 };
 
@@ -203,24 +260,36 @@ export type WorkloadMonth = {
  * podawany z zewnątrz (a nie wyliczany z przydziałów), żeby oś czasu na karcie
  * pracownika obejmowała też miesiące bez zaangażowania — dziura w obłożeniu
  * jest tak samo istotną informacją jak przeciążenie.
+ *
+ * Przeciążenie bierze się ze szczytu dziennego, a nie z udziału miesięcznego:
+ * dwa tygodnie na 1.5 FTE to realny problem, który po uśrednieniu na miesiąc
+ * wyglądałby na 0.75 i zniknąłby z oczu.
  */
 export function employeeWorkload(
   months: string[],
   assignments: WorkloadRow[]
 ): WorkloadMonth[] {
   return months.map((month) => {
-    const total = sumFte(
-      assignments
-        .filter((a) => monthsBetween(a.startMonth, a.endMonth).includes(month))
-        .map((a) => a.fte)
-    );
-    return { month, total, isOverloaded: isOverAllocated(total) };
+    const [year, m] = month.split("-").map(Number);
+    const first = new Date(Date.UTC(year, m - 1, 1));
+    const last = new Date(Date.UTC(year, m, 0));
+
+    const total =
+      Math.round(
+        assignments.reduce(
+          (sum, a) => sum + fteShareInMonth(a.fte, a.startDate, a.endDate, month),
+          0
+        ) * 100
+      ) / 100;
+    const peak = peakDailyFte(assignments, first, last);
+
+    return { month, total, peak, isOverloaded: isOverAllocated(peak) };
   });
 }
 
-/** FTE jednego przydziału w danym miesiącu (0, gdy go nie pokrywa). */
+/** Udział jednego przydziału w danym miesiącu (0, gdy go nie pokrywa). */
 export function assignmentFteInMonth(a: WorkloadRow, month: string): number {
-  return monthsBetween(a.startMonth, a.endMonth).includes(month) ? a.fte : 0;
+  return fteShareInMonth(a.fte, a.startDate, a.endDate, month);
 }
 
 /** Czy rola ma w którymkolwiek miesiącu niedobór obsady. */

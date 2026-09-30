@@ -8,7 +8,7 @@ import { addCostItem, deleteCostItem } from "@/app/actions/rates";
 import { formatGrosze } from "@/lib/cost";
 import { COST_CATEGORIES } from "@/lib/validation/rate";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
-import { formatMonthLabel } from "@/lib/timeline";
+import { formatMonthLabel, formatYmdRange } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +28,8 @@ type PersonCost = {
   userId: string;
   name: string;
   rolePosition: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: string;
+  endDate: string;
   fte: number;
   hours: number;
   grosze: number;
@@ -203,7 +203,7 @@ export function ProjectCosts({
                     </div>
                   </td>
                   <td className="p-2.5 whitespace-nowrap text-muted-foreground">
-                    {p.startMonth} – {p.endMonth}
+                    {formatYmdRange(p.startDate, p.endDate)}
                   </td>
                   <td className="p-2.5 text-right tabular-nums">{p.fte.toFixed(2)}</td>
                   <td className="p-2.5 text-right tabular-nums">{p.hours}</td>

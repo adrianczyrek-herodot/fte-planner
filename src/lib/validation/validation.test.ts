@@ -133,8 +133,8 @@ describe("ProjectSchema", () => {
 describe("AssignmentSchema", () => {
   const base = {
     userId: "u1",
-    startMonth: "2026-07",
-    endMonth: "2026-09",
+    startDate: "2026-07-01",
+    endDate: "2026-09-30",
     fte: "0.7",
   };
 
@@ -149,9 +149,17 @@ describe("AssignmentSchema", () => {
     expect(AssignmentSchema.safeParse({ ...base, fte: "abc" }).success).toBe(false);
   });
 
-  it("wymusza format miesięcy i kolejność (koniec ≥ start)", () => {
-    expect(AssignmentSchema.safeParse({ ...base, startMonth: "2026-13" }).success).toBe(false);
-    expect(AssignmentSchema.safeParse({ ...base, endMonth: "2026-06" }).success).toBe(false);
+  it("wymusza format dat i kolejność (koniec ≥ start)", () => {
+    expect(AssignmentSchema.safeParse({ ...base, startDate: "2026-13-01" }).success).toBe(false);
+    expect(AssignmentSchema.safeParse({ ...base, startDate: "2026-07" }).success).toBe(false);
+    expect(AssignmentSchema.safeParse({ ...base, endDate: "2026-06-30" }).success).toBe(false);
+  });
+
+  it("odrzuca datę, która nie istnieje w kalendarzu", () => {
+    // Sam regex by ją przepuścił — dlatego schemat sprawdza też, czy parser
+    // odtworzy dokładnie tę datę, którą dostał.
+    expect(AssignmentSchema.safeParse({ ...base, startDate: "2026-02-31" }).success).toBe(false);
+    expect(AssignmentSchema.safeParse({ ...base, startDate: "2026-02-28" }).success).toBe(true);
   });
 
   it("wymaga wybrania pracownika", () => {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { ymd } from "@/lib/timeline";
 import { requireCapability } from "@/app/actions/auth";
 import { can } from "@/lib/permissions";
 import {
@@ -68,11 +69,11 @@ export default async function ProjectDetailPage({
     include: {
       attachments: { orderBy: { createdAt: "desc" } },
       roles: {
-        orderBy: [{ startMonth: "asc" }, { createdAt: "asc" }],
+        orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
         include: {
           position: { select: { id: true, name: true } },
           assignments: {
-            orderBy: [{ startMonth: "asc" }],
+            orderBy: [{ startDate: "asc" }],
             include: { user: { select: { firstName: true, lastName: true } } },
           },
         },
@@ -114,22 +115,22 @@ export default async function ProjectDetailPage({
     const assignments = r.assignments.map((a) => ({
       id: a.id,
       userId: a.userId,
-      startMonth: a.startMonth,
-      endMonth: a.endMonth,
+      startDate: ymd(a.startDate),
+      endDate: ymd(a.endDate),
       fte: a.fte.toString(),
       isConflict: a.isConflict,
       name: `${a.user.firstName} ${a.user.lastName}`,
     }));
     const summary = roleCoverageSummary(
       {
-        startMonth: r.startMonth,
-        endMonth: r.endMonth,
+        startDate: r.startDate,
+        endDate: r.endDate,
         requiredFte: Number(r.requiredFte),
       },
       r.assignments.map((a) => ({
         id: a.id,
-        startMonth: a.startMonth,
-        endMonth: a.endMonth,
+        startDate: a.startDate,
+        endDate: a.endDate,
         fte: Number(a.fte),
       }))
     );
@@ -137,8 +138,8 @@ export default async function ProjectDetailPage({
       id: r.id,
       position: r.position.name,
       positionId: r.positionId,
-      startMonth: r.startMonth,
-      endMonth: r.endMonth,
+      startDate: ymd(r.startDate),
+      endDate: ymd(r.endDate),
       requiredFte: r.requiredFte.toString(),
       requiredPeople: r.requiredPeople != null ? String(r.requiredPeople) : "",
       people: peopleCoverage(r.requiredPeople, r.assignments),
@@ -166,8 +167,8 @@ export default async function ProjectDetailPage({
         name: `${a.user.firstName} ${a.user.lastName}`,
         rolePosition: r.position.name,
         positionId: r.positionId,
-        startMonth: a.startMonth,
-        endMonth: a.endMonth,
+        startDate: a.startDate,
+        endDate: a.endDate,
         fte: Number(a.fte),
       }))
     );
@@ -214,8 +215,8 @@ export default async function ProjectDetailPage({
         userId: a.userId,
         name: a.name,
         rolePosition: a.rolePosition,
-        startMonth: a.startMonth,
-        endMonth: a.endMonth,
+        startDate: ymd(a.startDate),
+        endDate: ymd(a.endDate),
         fte: a.fte,
         hours: Math.round(months.reduce((sum, m) => sum + m.hours, 0) * 100) / 100,
         grosze: months.reduce((sum, m) => sum + m.grosze, 0),

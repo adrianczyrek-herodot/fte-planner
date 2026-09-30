@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { workingDaysBetween } from "@/lib/period";
+
 import {
   assignmentCostByMonth,
   assignmentCostWithRates,
@@ -12,7 +14,19 @@ import {
   hoursInMonth,
   toGrosze,
   workingDaysInMonth,
+  HOURS_PER_WORKING_DAY,
 } from "./cost";
+
+/** Pełne miesiące jako zakres dzienny — od pierwszego do ostatniego dnia. */
+function whole(from: string, to: string): { startDate: Date; endDate: Date } {
+  const [y1, m1] = from.split("-").map(Number);
+  const [y2, m2] = to.split("-").map(Number);
+  return {
+    startDate: new Date(Date.UTC(y1, m1 - 1, 1)),
+    endDate: new Date(Date.UTC(y2, m2, 0)),
+  };
+}
+
 
 describe("workingDaysInMonth", () => {
   it("liczy dni robocze, nie wszystkie dni miesiąca", () => {
@@ -100,7 +114,7 @@ describe("assignmentCostByMonth", () => {
 
   it("liczy koszt osobno dla każdego miesiąca okresu", () => {
     const koszty = assignmentCostByMonth(
-      { startMonth: "2026-02", endMonth: "2026-03", fte: 1 },
+      { ...whole("2026-02", "2026-03"), fte: 1 },
       rate
     );
     expect(koszty).toHaveLength(2);
@@ -111,7 +125,7 @@ describe("assignmentCostByMonth", () => {
   });
 
   it("suma miesięcy zgadza się z sumą całkowitą", () => {
-    const a = { startMonth: "2026-07", endMonth: "2026-10", fte: 0.7 };
+    const a = { ...whole("2026-07", "2026-10"), fte: 0.7 };
     const perMonth = assignmentCostByMonth(a, rate);
     const suma = perMonth.reduce((s, m) => s + m.grosze, 0);
     expect(assignmentCostGrosze(a, rate)).toBe(suma);
@@ -119,11 +133,11 @@ describe("assignmentCostByMonth", () => {
 
   it("pół etatu kosztuje połowę pełnego", () => {
     const pelny = assignmentCostGrosze(
-      { startMonth: "2026-07", endMonth: "2026-07", fte: 1 },
+      { ...whole("2026-07", "2026-07"), fte: 1 },
       rate
     );
     const polowa = assignmentCostGrosze(
-      { startMonth: "2026-07", endMonth: "2026-07", fte: 0.5 },
+      { ...whole("2026-07", "2026-07"), fte: 0.5 },
       rate
     );
     expect(polowa * 2).toBe(pelny);
@@ -131,7 +145,7 @@ describe("assignmentCostByMonth", () => {
 
   it("jeden miesiąc okresu to jeden wiersz kosztu", () => {
     const koszty = assignmentCostByMonth(
-      { startMonth: "2026-05", endMonth: "2026-05", fte: 1 },
+      { ...whole("2026-05", "2026-05"), fte: 1 },
       rate
     );
     expect(koszty).toHaveLength(1);
@@ -203,7 +217,7 @@ describe("assignmentCostWithRates", () => {
       { grosze: 18000, validFrom: dzien("2026-08-01") },
     ];
     const miesiace = assignmentCostWithRates(
-      { startMonth: "2026-07", endMonth: "2026-08", fte: 1 },
+      { ...whole("2026-07", "2026-08"), fte: 1 },
       zPodwyzka,
       []
     );
@@ -214,7 +228,7 @@ describe("assignmentCostWithRates", () => {
 
   it("bez stawki pracownika liczy ze stawki stanowiska i to zaznacza", () => {
     const [m] = assignmentCostWithRates(
-      { startMonth: "2026-07", endMonth: "2026-07", fte: 1 },
+      { ...whole("2026-07", "2026-07"), fte: 1 },
       [],
       stanowiska
     );
@@ -224,7 +238,7 @@ describe("assignmentCostWithRates", () => {
 
   it("stawka pracownika wygrywa ze stawką stanowiska", () => {
     const [m] = assignmentCostWithRates(
-      { startMonth: "2026-07", endMonth: "2026-07", fte: 1 },
+      { ...whole("2026-07", "2026-07"), fte: 1 },
       pracownika,
       stanowiska
     );
@@ -234,7 +248,7 @@ describe("assignmentCostWithRates", () => {
 
   it("brak jakiejkolwiek stawki → koszt zerowy i jawny brak źródła", () => {
     const [m] = assignmentCostWithRates(
-      { startMonth: "2026-07", endMonth: "2026-07", fte: 1 },
+      { ...whole("2026-07", "2026-07"), fte: 1 },
       [],
       []
     );
@@ -244,7 +258,7 @@ describe("assignmentCostWithRates", () => {
 
 describe("projectCostSummary", () => {
   const miesiace = assignmentCostWithRates(
-    { startMonth: "2026-07", endMonth: "2026-07", fte: 1 },
+    { ...whole("2026-07", "2026-07"), fte: 1 },
     [{ grosze: 15000, validFrom: dzien("2026-01-01") }],
     []
   );
@@ -274,7 +288,7 @@ describe("projectCostSummary", () => {
 
   it("liczy miesiące bez stawki, żeby marża nie kłamała brakiem danych", () => {
     const bezStawki = assignmentCostWithRates(
-      { startMonth: "2026-07", endMonth: "2026-09", fte: 1 },
+      { ...whole("2026-07", "2026-09"), fte: 1 },
       [],
       []
     );
@@ -283,5 +297,46 @@ describe("projectCostSummary", () => {
     expect(s.laborGrosze).toBe(0);
     // Marża wygląda świetnie wyłącznie dlatego, że brakuje stawek.
     expect(s.marginGrosze).toBe(toGrosze(40000));
+  });
+});
+
+describe("koszt przy okresach krótszych niż miesiąc", () => {
+  const d = (v: string) => {
+    const [y, m, dd] = v.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, dd));
+  };
+
+  it("liczy tylko pokryte dni robocze, a nie cały miesiąc", () => {
+    // 12-26 lipca 2026 to 10 dni roboczych, czyli 80 godzin przy 1.0 FTE.
+    // Przed przejściem na dni ten sam przydział kosztowałby pełne 184 godziny.
+    const czesciowy = assignmentCostByMonth(
+      { startDate: d("2026-07-12"), endDate: d("2026-07-26"), fte: 1 },
+      10000
+    );
+    expect(czesciowy).toHaveLength(1);
+    expect(czesciowy[0].hours).toBe(80);
+    expect(czesciowy[0].grosze).toBe(80 * 10000);
+  });
+
+  it("pełny miesiąc nadal kosztuje tyle samo co wcześniej", () => {
+    const pelny = assignmentCostByMonth(
+      { startDate: d("2026-07-01"), endDate: d("2026-07-31"), fte: 1 },
+      10000
+    );
+    expect(pelny[0].hours).toBe(184);
+  });
+
+  it("przydział przez granicę miesięcy rozbija się na oba, każdy po swojemu", () => {
+    const przezGranice = assignmentCostByMonth(
+      { startDate: d("2026-07-27"), endDate: d("2026-08-07"), fte: 1 },
+      10000
+    );
+    expect(przezGranice.map((m) => m.month)).toEqual(["2026-07", "2026-08"]);
+    // Suma godzin musi odpowiadać dniom roboczym całego zakresu, bez gubienia
+    // i bez podwójnego liczenia dnia na styku.
+    const suma = przezGranice.reduce((acc, m) => acc + m.hours, 0);
+    expect(suma).toBe(
+      workingDaysBetween(d("2026-07-27"), d("2026-08-07")) * HOURS_PER_WORKING_DAY
+    );
   });
 });

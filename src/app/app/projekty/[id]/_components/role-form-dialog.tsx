@@ -22,8 +22,8 @@ import {
 type Role = {
   id: string;
   positionId: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: string;
+  endDate: string;
   requiredFte: string;
   requiredPeople: string;
 };
@@ -79,29 +79,29 @@ export function RoleFormDialog(props: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="startMonth">Od (miesiąc)</Label>
+              <Label htmlFor="startDate">Od (dzień)</Label>
               <Input
-                id="startMonth"
-                name="startMonth"
-                type="month"
-                defaultValue={role?.startMonth}
+                id="startDate"
+                name="startDate"
+                type="date"
+                defaultValue={role?.startDate}
                 required
               />
-              {state?.errors?.startMonth && (
-                <p className="text-sm text-destructive">{state.errors.startMonth[0]}</p>
+              {state?.errors?.startDate && (
+                <p className="text-sm text-destructive">{state.errors.startDate[0]}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="endMonth">Do (miesiąc)</Label>
+              <Label htmlFor="endDate">Do (dzień)</Label>
               <Input
-                id="endMonth"
-                name="endMonth"
-                type="month"
-                defaultValue={role?.endMonth}
+                id="endDate"
+                name="endDate"
+                type="date"
+                defaultValue={role?.endDate}
                 required
               />
-              {state?.errors?.endMonth && (
-                <p className="text-sm text-destructive">{state.errors.endMonth[0]}</p>
+              {state?.errors?.endDate && (
+                <p className="text-sm text-destructive">{state.errors.endDate[0]}</p>
               )}
             </div>
           </div>

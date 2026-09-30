@@ -134,3 +134,8 @@ export function monthSegments(
 
   return segments;
 }
+
+/** Zakres dat "RRRR-MM-DD" → czytelny zapis, np. "12 lip – 26 paź 2026". */
+export function formatYmdRange(start: string, end: string): string {
+  return formatDayRange(dayIndex(parseYmd(start)), dayIndex(parseYmd(end)));
+}

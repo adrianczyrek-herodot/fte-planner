@@ -7,7 +7,7 @@ import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
-import { parseYmd, ym } from "@/lib/timeline";
+import { parseYmd } from "@/lib/timeline";
 import {
   PROJECT_LINK_FIELDS,
   ProjectSchema,
@@ -88,8 +88,8 @@ export async function createProject(
       roles: {
         create: draft.roles!.map((r) => ({
           positionId: r.positionId,
-          startMonth: r.startMonth,
-          endMonth: r.endMonth,
+          startDate: parseYmd(r.startDate),
+          endDate: parseYmd(r.endDate),
           requiredFte: Math.round(r.requiredFte * 100) / 100,
           requiredPeople: r.requiredPeople,
         })),
@@ -295,16 +295,20 @@ export async function rescheduleProject(
   // przechodzimy nad tym w milczeniu — z okresów ról będą kiedyś wynikać koszty.
   const roles = await prisma.projectRole.findMany({
     where: { projectId },
-    select: { position: true, startMonth: true, endMonth: true },
+    // `position` to relacja, więc bez zagnieżdżonego selecta w komunikacie
+    // lądował cały obiekt i użytkownik widział "[object Object]".
+    select: {
+      position: { select: { name: true } },
+      startDate: true,
+      endDate: true,
+    },
   });
-  const projectStart = ym(startDate);
-  const projectEnd = ym(endDate);
   const outside = roles.filter(
-    (r) => r.startMonth < projectStart || r.endMonth > projectEnd
+    (r) => r.startDate < startDate || r.endDate > endDate
   );
 
   if (outside.length > 0) {
-    const names = [...new Set(outside.map((r) => r.position))].join(", ");
+    const names = [...new Set(outside.map((r) => r.position.name))].join(", ");
     return {
       ok: true,
       warning: `Zapisano, ale ${outside.length === 1 ? "rola wychodzi" : "role wychodzą"} poza terminy projektu: ${names}.`,
