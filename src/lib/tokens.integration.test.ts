@@ -15,7 +15,9 @@ beforeAll(async () => {
       email: "token-itest@example.test",
       firstName: "Token",
       lastName: "Test",
-      status: "pending",
+      // Tokeny dostają tylko aktywne konta: zaproszenie zakłada konto od razu
+      // aktywne, a reset hasła jest wysyłany wyłącznie aktywnym.
+      status: "approved",
     },
   });
   userId = user.id;
@@ -67,4 +69,24 @@ it("token wygasły jest odrzucany i sprzątany", async () => {
 it("zmyślony / obcięty token → null", async () => {
   expect(await verifyPasswordResetToken("nie-istnieje")).toBeNull();
   expect(await verifyPasswordResetToken("")).toBeNull();
+});
+
+it("dwa równoległe użycia tego samego tokenu — przechodzi tylko jedno", async () => {
+  const raw = await createPasswordResetToken(userId, "reset");
+  const results = await Promise.all([
+    consumePasswordResetToken(raw),
+    consumePasswordResetToken(raw),
+  ]);
+  expect(results.filter((r) => r === userId)).toHaveLength(1);
+});
+
+it("dezaktywowane konto nie może użyć wcześniej wysłanego linku", async () => {
+  const raw = await createPasswordResetToken(userId, "invite");
+  await prisma.user.update({ where: { id: userId }, data: { status: "inactive" } });
+  try {
+    expect(await verifyPasswordResetToken(raw)).toBeNull();
+    expect(await consumePasswordResetToken(raw)).toBeNull();
+  } finally {
+    await prisma.user.update({ where: { id: userId }, data: { status: "approved" } });
+  }
 });

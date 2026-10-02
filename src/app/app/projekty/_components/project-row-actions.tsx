@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import type { ProjectLinkKey } from "@/lib/validation/project";
 import { ProjectFormDialog } from "./project-form-dialog";
 
 type Project = {
@@ -24,7 +25,7 @@ type Project = {
   startDate: Date | null;
   endDate: Date | null;
   budget: number | null;
-};
+} & Record<ProjectLinkKey, string | null>;
 
 export function ProjectRowActions({ project }: { project: Project }) {
   return (

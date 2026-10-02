@@ -8,7 +8,10 @@ import * as z from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
 import { parseYmd } from "@/lib/timeline";
+import { recomputeUserConflicts } from "@/lib/assignments-core";
 import {
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_LABEL,
   PROJECT_LINK_FIELDS,
   ProjectSchema,
   ProjectFormState,
@@ -19,7 +22,7 @@ import { ProjectRoleSchema } from "@/lib/validation/staffing";
 // istnieć, zanim ktokolwiek zostanie przypisany. Formularz wysyła je jako JSON
 // w jednym polu, bo liczba wierszy jest zmienna.
 const DraftRolesSchema = z.array(ProjectRoleSchema).max(20, {
-  error: "Zbyt wiele roli naraz — dodaj pozostałe na stronie projektu.",
+  error: "Zbyt wiele ról naraz — dodaj pozostałe na stronie projektu.",
 });
 
 function parseDraftRoles(raw: FormDataEntryValue | null) {
@@ -30,7 +33,7 @@ function parseDraftRoles(raw: FormDataEntryValue | null) {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { error: "Nie udało się odczytać listy roli." };
+    return { error: "Nie udało się odczytać listy ról." };
   }
   const v = DraftRolesSchema.safeParse(parsed);
   if (!v.success) {
@@ -148,8 +151,6 @@ export async function updateProject(
   return { success: true };
 }
 
-const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024; // 25 MB
-
 export type AttachmentUploadState = { message?: string } | undefined;
 
 export async function uploadAttachment(
@@ -165,8 +166,8 @@ export async function uploadAttachment(
     return { message: "Wybierz plik do przesłania." };
   }
 
-  if (file.size > MAX_ATTACHMENT_SIZE) {
-    return { message: "Plik jest zbyt duży (maksymalnie 25 MB)." };
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    return { message: `Plik jest zbyt duży (maksymalnie ${MAX_ATTACHMENT_LABEL}).` };
   }
 
   // Storage bywa nieskonfigurowany (brak BLOB_READ_WRITE_TOKEN) albo chwilowo
@@ -182,8 +183,8 @@ export async function uploadAttachment(
     console.error("[uploadAttachment] blob put failed", error);
     return {
       message:
-        "Nie udało się przesłać pliku — magazyn plików jest niedostępny. " +
-        "Sprawdź konfigurację BLOB_READ_WRITE_TOKEN.",
+        "Nie udało się przesłać pliku — magazyn plików jest chwilowo niedostępny. " +
+        "Spróbuj ponownie później albo zgłoś to administratorowi.",
     };
   }
 
@@ -238,13 +239,23 @@ export async function deleteProject(formData: FormData) {
     select: { fileUrl: true },
   });
 
+  // Osoby z obsady projektu — ich przydziały w INNYCH projektach mogły być
+  // w konflikcie właśnie z tym projektem, więc po kasacji trzeba to przeliczyć.
+  const affected = await prisma.assignment.findMany({
+    where: { projectRole: { projectId: id } },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+
   // Kasacja projektu usuwa kaskadowo attachments i assignments (onDelete: Cascade).
   await prisma.project.delete({ where: { id } });
+  for (const { userId } of affected) await recomputeUserConflicts(prisma, userId);
 
   // Best-effort usunięcie osieroconych plików z Blob store.
   await Promise.allSettled(attachments.map((a) => del(a.fileUrl)));
 
   revalidatePath(PROJECTS_PATH);
+  revalidatePath(TIMELINE_PATH);
 }
 
 export type RescheduleResult = {

@@ -34,6 +34,7 @@ type Employee = {
 type Assignment = {
   id: string;
   userId: string;
+  userName: string;
   startDate: string;
   endDate: string;
   fte: string;
@@ -64,6 +65,12 @@ export function RoleAssignmentDialog({
     if (s?.success && open) setOpen(false);
   });
 
+  // Lista wyboru zawiera tylko aktywnych pracowników. Przydział osoby, która
+  // odeszła (albo została zanonimizowana), musi mimo to pokazać i zachować
+  // jej wybór — inaczej zapis po cichu przepisałby historię na kogoś innego.
+  const currentIsListed =
+    !assignment || employees.some((e) => e.id === assignment.userId);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
@@ -85,6 +92,11 @@ export function RoleAssignmentDialog({
                 <SelectValue placeholder="Wybierz pracownika" />
               </SelectTrigger>
               <SelectContent>
+                {!currentIsListed && (
+                  <SelectItem value={assignment.userId}>
+                    {assignment.userName} (nieaktywny)
+                  </SelectItem>
+                )}
                 {employees.map((e) => (
                   <SelectItem key={e.id} value={e.id}>
                     <span className="flex flex-col">

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Clock, UserX } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Clock, LogOut, UserX } from "lucide-react";
 
 import {
   Card,
@@ -8,7 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { auth } from "@/auth";
+import { logout } from "@/app/actions/auth";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
@@ -24,6 +27,8 @@ export default async function PendingPage() {
       where: { id: session.user.id },
       select: { status: true },
     });
+    // Aktywne konto nie ma tu czego szukać (np. zatwierdzone w międzyczasie).
+    if (dbUser?.status === "approved") redirect("/app");
     isInactive = dbUser?.status === "inactive";
   }
 
@@ -47,10 +52,20 @@ export default async function PendingPage() {
               : "Twoje konto zostało utworzone i czeka na zatwierdzenie przez administratora. Otrzymasz dostęp, gdy administrator zaakceptuje Twoją rejestrację."}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col items-center gap-4">
           <p className="text-sm text-muted-foreground">
             Możesz zamknąć tę stronę — spróbuj zalogować się ponownie później.
           </p>
+          {/* Bez tego nie dałoby się tu przelogować na inne konto: sesja
+              wciąż istnieje, więc /login odsyła z powrotem na tę stronę. */}
+          {session?.user && (
+            <form action={logout}>
+              <Button type="submit" variant="outline" size="sm">
+                <LogOut />
+                Wyloguj się
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

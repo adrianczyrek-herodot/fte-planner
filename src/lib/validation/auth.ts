@@ -1,9 +1,11 @@
 import * as z from "zod";
 
+import { emailField } from "@/lib/validation/email";
+
 export const SignupFormSchema = z.object({
   firstName: z.string().trim().min(1, { error: "Imię jest wymagane." }),
   lastName: z.string().trim().min(1, { error: "Nazwisko jest wymagane." }),
-  email: z.email({ error: "Podaj poprawny adres e-mail." }).trim(),
+  email: emailField,
   password: z
     .string()
     .min(8, { error: "Hasło musi mieć co najmniej 8 znaków." })
@@ -24,7 +26,7 @@ export type SignupFormState =
   | undefined;
 
 export const LoginFormSchema = z.object({
-  email: z.email({ error: "Podaj poprawny adres e-mail." }).trim(),
+  email: emailField,
   password: z.string().min(1, { error: "Hasło jest wymagane." }),
 });
 

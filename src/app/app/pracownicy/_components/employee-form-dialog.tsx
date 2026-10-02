@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 
 import { createEmployee, updateEmployee } from "@/app/actions/employees";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
+import { NO_POSITION } from "@/lib/validation/employee";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,10 +44,6 @@ type Props = (
   positions: { id: string; name: string }[];
   skills: { id: string; name: string }[];
 };
-
-// Radix Select nie przyjmuje pustej wartości, więc „brak stanowiska"
-// reprezentujemy sentinelem, który walidacja zamienia na null.
-const NO_POSITION = "__none__";
 
 export function EmployeeFormDialog({
   mode,

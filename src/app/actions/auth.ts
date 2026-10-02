@@ -7,6 +7,7 @@ import * as z from "zod";
 
 import { auth, signIn, signOut, PendingApprovalError, AccountInactiveError } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { emailLookup } from "@/lib/validation/email";
 import {
   can,
   capabilitiesOf,
@@ -37,7 +38,7 @@ export async function signup(
 
   const { firstName, lastName, email, password } = validatedFields.data;
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
+  const existingUser = await prisma.user.findFirst({ where: emailLookup(email) });
   if (existingUser) {
     return { message: "Konto z tym adresem e-mail już istnieje." };
   }

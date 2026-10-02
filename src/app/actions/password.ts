@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { emailLookup } from "@/lib/validation/email";
 import { consumePasswordResetToken, createPasswordResetToken } from "@/lib/tokens";
 import { sendPasswordSetupEmail } from "@/lib/mail";
 import {
@@ -39,11 +40,11 @@ export async function setPassword(
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // Ustawienie hasła jednocześnie aktywuje konto — zaproszony pracownik po tym
-  // kroku może się zalogować. (Nie ruszamy roli.)
+  // Zaproszone konto jest aktywne od chwili dodania, więc wystarczy hasło.
+  // Statusu nie ruszamy: o aktywacji decyduje wyłącznie administrator.
   await prisma.user.update({
     where: { id: userId },
-    data: { passwordHash, status: "approved" },
+    data: { passwordHash },
   });
 
   return { success: true };
@@ -63,7 +64,7 @@ export async function requestPasswordReset(
 
   const { email } = validatedFields.data;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findFirst({ where: emailLookup(email) });
 
   // Reset wysyłamy tylko dla aktywnych kont, ale odpowiedź jest zawsze taka
   // sama — nie zdradzamy, czy dany e-mail istnieje w systemie.

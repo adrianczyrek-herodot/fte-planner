@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import { emailField } from "@/lib/validation/email";
+
 const passwordRules = z
   .string()
   .min(8, { error: "Hasło musi mieć co najmniej 8 znaków." })
@@ -29,7 +31,7 @@ export type SetPasswordFormState =
   | undefined;
 
 export const RequestResetSchema = z.object({
-  email: z.email({ error: "Podaj poprawny adres e-mail." }).trim(),
+  email: emailField,
 });
 
 export type RequestResetFormState =

@@ -17,6 +17,7 @@ import {
   formatDate,
   projectStatusMeta,
 } from "@/lib/project-status";
+import type { ProjectLinkKey } from "@/lib/validation/project";
 import { ProjectRowActions } from "./project-row-actions";
 
 type Project = {
@@ -26,6 +27,7 @@ type Project = {
   startDate: Date | null;
   endDate: Date | null;
   budget: number | null;
+  links: Record<ProjectLinkKey, string | null>;
   assigneeCount: number;
   attachmentCount: number;
   hasConflict: boolean;
@@ -115,6 +117,7 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
                       startDate: project.startDate,
                       endDate: project.endDate,
                       budget: project.budget,
+                      ...project.links,
                     }}
                   />
                 </TableCell>

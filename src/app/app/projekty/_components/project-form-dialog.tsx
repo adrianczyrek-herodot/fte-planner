@@ -53,16 +53,11 @@ function toDateInputValue(date: Date | null | undefined) {
 
 type DraftRole = {
   positionId: string;
-  startMonth: string;
-  endMonth: string;
+  startDate: string;
+  endDate: string;
   requiredFte: string;
   requiredPeople: string;
 };
-
-/** "2026-07-01" → "2026-07"; pusta data → "". */
-function monthOf(date: string) {
-  return date ? date.slice(0, 7) : "";
-}
 
 export function ProjectFormDialog({
   mode,
@@ -92,8 +87,8 @@ export function ProjectFormDialog({
       ...r,
       {
         positionId: "",
-        startMonth: monthOf(startDate),
-        endMonth: monthOf(endDate),
+        startDate,
+        endDate,
         requiredFte: "1",
         requiredPeople: "1",
       },
@@ -245,16 +240,16 @@ export function ProjectFormDialog({
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <Input
-                          aria-label={`Od miesiąca, rola ${i + 1}`}
-                          type="month"
-                          value={row.startMonth}
-                          onChange={(e) => updateRole(i, { startMonth: e.target.value })}
+                          aria-label={`Od dnia, rola ${i + 1}`}
+                          type="date"
+                          value={row.startDate}
+                          onChange={(e) => updateRole(i, { startDate: e.target.value })}
                         />
                         <Input
-                          aria-label={`Do miesiąca, rola ${i + 1}`}
-                          type="month"
-                          value={row.endMonth}
-                          onChange={(e) => updateRole(i, { endMonth: e.target.value })}
+                          aria-label={`Do dnia, rola ${i + 1}`}
+                          type="date"
+                          value={row.endDate}
+                          onChange={(e) => updateRole(i, { endDate: e.target.value })}
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-2">

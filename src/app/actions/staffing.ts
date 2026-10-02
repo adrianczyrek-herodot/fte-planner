@@ -151,12 +151,29 @@ export async function createOrUpdateAssignment(
   const fte = round2(v.data.fte);
   const affected = new Set<string>([userId]);
 
-  if (assignmentId) {
-    const existing = await prisma.assignment.findUnique({
-      where: { id: assignmentId },
-      select: { userId: true },
+  const existing = assignmentId
+    ? await prisma.assignment.findUnique({
+        where: { id: assignmentId },
+        select: { userId: true, projectRoleId: true },
+      })
+    : null;
+  if (assignmentId && (!existing || existing.projectRoleId !== projectRoleId)) {
+    return { message: "Przydział już nie istnieje." };
+  }
+
+  // Nowych osób przypisujemy tylko spośród aktywnych pracowników. Wyjątkiem jest
+  // edycja przydziału bez zmiany osoby — historia nieaktywnej osoby zostaje.
+  if (existing?.userId !== userId) {
+    const person = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
     });
-    if (!existing) return { message: "Przydział już nie istnieje." };
+    if (person?.status !== "approved") {
+      return { errors: { userId: ["Wybierz aktywnego pracownika."] } };
+    }
+  }
+
+  if (assignmentId && existing) {
     affected.add(existing.userId);
     await prisma.assignment.update({
       where: { id: assignmentId },

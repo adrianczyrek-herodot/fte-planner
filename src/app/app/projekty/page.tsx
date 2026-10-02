@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
+import { PROJECT_LINK_FIELDS, type ProjectLinkKey } from "@/lib/validation/project";
 import { Button } from "@/components/ui/button";
 import { ProjectFormDialog } from "./_components/project-form-dialog";
 import { ProjectsTable } from "./_components/projects-table";
@@ -47,6 +48,13 @@ export default async function ProjectsPage({
       startDate: true,
       endDate: true,
       budget: true,
+      // Linki nie są pokazywane na liście, ale dialog edycji zapisuje wszystkie
+      // pola naraz — bez nich zapis z listy wyczyściłby linki projektu.
+      projectCardUrl: true,
+      riskCardUrl: true,
+      confluenceUrl: true,
+      miroUrl: true,
+      domainUrl: true,
       _count: { select: { attachments: true } },
       // Obsada i konflikt liczone z ról → przydziałów.
       roles: {
@@ -64,6 +72,10 @@ export default async function ProjectsPage({
       startDate: p.startDate,
       endDate: p.endDate,
       budget: p.budget != null ? Number(p.budget) : null,
+      links: Object.fromEntries(PROJECT_LINK_FIELDS.map((f) => [f.key, p[f.key]])) as Record<
+        ProjectLinkKey,
+        string | null
+      >,
       attachmentCount: p._count.attachments,
       assigneeCount: new Set(assignments.map((a) => a.userId)).size,
       hasConflict: assignments.some((a) => a.isConflict),

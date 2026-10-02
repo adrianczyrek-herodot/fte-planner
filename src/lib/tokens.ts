@@ -34,30 +34,41 @@ export async function createPasswordResetToken(
 }
 
 // Zwraca userId dla ważnego tokenu albo null. Wygasłe tokeny są sprzątane.
+// Link działa tylko dla aktywnego konta — inaczej dezaktywowany pracownik
+// mógłby starym zaproszeniem albo resetem wrócić do aplikacji.
 export async function verifyPasswordResetToken(
   rawToken: string
 ): Promise<string | null> {
   const record = await prisma.passwordResetToken.findUnique({
     where: { tokenHash: hashToken(rawToken) },
+    select: { id: true, userId: true, expires: true, user: { select: { status: true } } },
   });
 
   if (!record) return null;
 
   if (record.expires.getTime() < Date.now()) {
-    await prisma.passwordResetToken.delete({ where: { id: record.id } });
+    await prisma.passwordResetToken.deleteMany({ where: { id: record.id } });
     return null;
   }
+
+  if (record.user.status !== "approved") return null;
 
   return record.userId;
 }
 
-// Konsumuje token (weryfikuje + kasuje wszystkie tokeny użytkownika w jednej
-// transakcji, żeby ten sam link nie zadziałał dwa razy).
+// Konsumuje token: weryfikuje go i kasuje wszystkie tokeny użytkownika, żeby
+// ten sam link nie zadziałał dwa razy. Skasowanie samego tokenu jest warunkiem
+// sukcesu — z dwóch równoległych wysłań formularza wygrywa tylko jedno.
 export async function consumePasswordResetToken(
   rawToken: string
 ): Promise<string | null> {
   const userId = await verifyPasswordResetToken(rawToken);
   if (!userId) return null;
+
+  const { count } = await prisma.passwordResetToken.deleteMany({
+    where: { tokenHash: hashToken(rawToken) },
+  });
+  if (count === 0) return null;
 
   await prisma.passwordResetToken.deleteMany({ where: { userId } });
   return userId;

@@ -17,6 +17,8 @@ function formatMoment(at: Date): string {
   return new Intl.DateTimeFormat("pl-PL", {
     dateStyle: "short",
     timeStyle: "short",
+    // Serwer (Vercel) działa w UTC — godziny pokazujemy w czasie polskim.
+    timeZone: "Europe/Warsaw",
   }).format(at);
 }
 

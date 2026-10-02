@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
+import { emailLookup } from "@/lib/validation/email";
 import { UserStatus } from "@/generated/prisma/enums";
 
 export class InvalidCredentialsError extends CredentialsSignin {
@@ -36,7 +37,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new InvalidCredentialsError();
         }
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findFirst({ where: emailLookup(email) });
 
         if (!user || !user.passwordHash) {
           throw new InvalidCredentialsError();

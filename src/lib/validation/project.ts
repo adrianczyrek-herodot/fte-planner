@@ -82,3 +82,9 @@ export type ProjectFormState =
       message?: string;
     }
   | undefined;
+
+// Limit wyznacza Vercel: żądanie do funkcji może mieć najwyżej 4,5 MB, a plik
+// jedzie w nim razem z narzutem formularza. Ten sam limit sprawdza przeglądarka
+// (od razu, przed wysyłką) i serwer.
+export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+export const MAX_ATTACHMENT_LABEL = "4 MB";

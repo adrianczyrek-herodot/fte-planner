@@ -250,6 +250,7 @@ export function StaffingSection({
                           assignment={{
                             id: a.id,
                             userId: a.userId,
+                            userName: a.name,
                             startDate: a.startDate,
                             endDate: a.endDate,
                             fte: a.fte,

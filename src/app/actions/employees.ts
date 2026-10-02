@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { emailLookup } from "@/lib/validation/email";
 import { anonymizedIdentity } from "@/lib/anonymize";
 import { auditEntry, roleChangeDetails, statusChangeAction } from "@/lib/audit";
 import { requireCapability } from "@/app/actions/auth";
@@ -39,7 +40,7 @@ export async function createEmployee(
   const { email, firstName, lastName, positionId, skillIds, role } =
     validatedFields.data;
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
+  const existingUser = await prisma.user.findFirst({ where: emailLookup(email) });
   if (existingUser) {
     return { message: "Pracownik z tym adresem e-mail już istnieje." };
   }
@@ -180,6 +181,10 @@ export async function setEmployeeStatus(formData: FormData) {
 
   await prisma.$transaction([
     prisma.user.update({ where: { id }, data: { status } }),
+    // Dezaktywacja unieważnia wysłane zaproszenia i linki resetu hasła.
+    ...(status === "inactive"
+      ? [prisma.passwordResetToken.deleteMany({ where: { userId: id } })]
+      : []),
     prisma.auditEvent.create({
       data: auditEntry({
         actorId: session.user.id,

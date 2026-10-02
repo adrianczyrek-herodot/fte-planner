@@ -57,6 +57,15 @@ function computeAssignmentConflicts(assignments) {
   );
 }
 
+/**
+ * Dane demo opisujemy w całych miesiącach ("YYYY-MM"), a baza trzyma okresy w dniach.
+ * Miesiąc początkowy to jego pierwszy dzień, końcowy — ostatni (jak w migracji
+ * `przydzialy_dzienne`), więc reguła konfliktów liczona po miesiącach pozostaje trafna.
+ */
+const MONTH_START_SQL = (p) => `to_date(${p} || '-01', 'YYYY-MM-DD')`;
+const MONTH_END_SQL = (p) =>
+  `(to_date(${p} || '-01', 'YYYY-MM-DD') + INTERVAL '1 month' - INTERVAL '1 day')::date`;
+
 const DEMO_PASSWORD = "Demo1234";
 
 // --- Obsada: kto, gdzie, na jakim FTE ---------------------------------------
@@ -338,6 +347,25 @@ const PROJECTS = [
   },
 ];
 
+// Skrypt kasuje projekty i zakłada konta (także administratora) ze znanym
+// hasłem — na współdzielonej bazie byłby furtką. Domyślnie działa wyłącznie
+// na bazie lokalnej; świadome użycie gdzie indziej wymaga ALLOW_DEMO_SEED=1.
+const dbHost = (() => {
+  try {
+    return new URL(process.env.DATABASE_URL ?? "").hostname;
+  } catch {
+    return "";
+  }
+})();
+if (!["localhost", "127.0.0.1", "::1"].includes(dbHost) && process.env.ALLOW_DEMO_SEED !== "1") {
+  console.error(
+    `⛔ Odmowa: DATABASE_URL wskazuje na „${dbHost || "?"}", a nie na bazę lokalną.\n` +
+      "   Dane demo zawierają konto administratora z hasłem Demo1234.\n" +
+      "   Jeśli na pewno chcesz je wgrać, uruchom z ALLOW_DEMO_SEED=1."
+  );
+  process.exit(1);
+}
+
 const client = new Client({ connectionString: process.env.DATABASE_URL });
 await client.connect();
 
@@ -471,9 +499,10 @@ try {
     for (const r of p.roles) {
       const { rows: roleRows } = await client.query(
         `INSERT INTO "ProjectRole"
-           (id, "projectId", "positionId", "startMonth", "endMonth", "requiredFte",
+           (id, "projectId", "positionId", "startDate", "endDate", "requiredFte",
             "requiredPeople", "updatedAt")
-         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, now())
+         VALUES (gen_random_uuid()::text, $1, $2, ${MONTH_START_SQL("$3")}, ${MONTH_END_SQL("$4")},
+                 $5, $6, now())
          RETURNING id`,
         [
           projectId,
@@ -492,8 +521,9 @@ try {
 
         const { rows: aRows } = await client.query(
           `INSERT INTO "Assignment"
-             (id, "userId", "projectRoleId", "startMonth", "endMonth", fte, "updatedAt")
-           VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, now())
+             (id, "userId", "projectRoleId", "startDate", "endDate", fte, "updatedAt")
+           VALUES (gen_random_uuid()::text, $1, $2, ${MONTH_START_SQL("$3")}, ${MONTH_END_SQL("$4")},
+                   $5, now())
            RETURNING id`,
           [userId, roleId, a.startMonth, a.endMonth, a.fte]
         );

@@ -33,7 +33,14 @@ const navItems: {
   { href: "/app/ustawienia", label: "Ustawienia", icon: Settings, requires: "manageDictionaries" },
 ];
 
-export function SidebarNav({ capabilities }: { capabilities: Capability[] }) {
+export function SidebarNav({
+  capabilities,
+  onNavigate,
+}: {
+  capabilities: Capability[];
+  /** Wołane po kliknięciu pozycji — menu mobilne się wtedy zamyka. */
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
 
   return (
@@ -51,6 +58,7 @@ export function SidebarNav({ capabilities }: { capabilities: Capability[] }) {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onNavigate}
             className={cn(
               "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground",
               isActive
