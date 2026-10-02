@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 
+import { useActionForm, useFreshState } from "@/lib/hooks/use-action-form";
 import { createProjectRole, updateProjectRole } from "@/app/actions/staffing";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,9 @@ export function RoleFormDialog(props: Props) {
     mode === "create"
       ? createProjectRole.bind(null, props.projectId)
       : updateProjectRole;
-  const [state, formAction, pending] = useActionState(action, undefined);
+  const [state, formAction, pending] = useActionForm(action, undefined);
+  // Błędy z poprzedniego otwarcia dialogu nie powinny wisieć nad nowym formularzem.
+  const shown = useFreshState(state, open);
 
   useActionEffect(state, (s) => {
     if (s?.success && open) setOpen(false);
@@ -61,7 +64,7 @@ export function RoleFormDialog(props: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <form key={String(open)} action={formAction} className="flex flex-col gap-4">
+        <form key={String(open)} onSubmit={formAction} className="flex flex-col gap-4">
           {mode === "edit" && <input type="hidden" name="id" value={role!.id} />}
 
           <div className="flex flex-col gap-2">
@@ -72,8 +75,8 @@ export function RoleFormDialog(props: Props) {
               positions={positions}
               defaultValue={role?.positionId}
             />
-            {state?.errors?.positionId && (
-              <p className="text-sm text-destructive">{state.errors.positionId[0]}</p>
+            {shown?.errors?.positionId && (
+              <p className="text-sm text-destructive">{shown.errors.positionId[0]}</p>
             )}
           </div>
 
@@ -87,8 +90,8 @@ export function RoleFormDialog(props: Props) {
                 defaultValue={role?.startDate}
                 required
               />
-              {state?.errors?.startDate && (
-                <p className="text-sm text-destructive">{state.errors.startDate[0]}</p>
+              {shown?.errors?.startDate && (
+                <p className="text-sm text-destructive">{shown.errors.startDate[0]}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -100,8 +103,8 @@ export function RoleFormDialog(props: Props) {
                 defaultValue={role?.endDate}
                 required
               />
-              {state?.errors?.endDate && (
-                <p className="text-sm text-destructive">{state.errors.endDate[0]}</p>
+              {shown?.errors?.endDate && (
+                <p className="text-sm text-destructive">{shown.errors.endDate[0]}</p>
               )}
             </div>
           </div>
@@ -119,8 +122,8 @@ export function RoleFormDialog(props: Props) {
               placeholder="np. 1.00"
               required
             />
-            {state?.errors?.requiredFte && (
-              <p className="text-sm text-destructive">{state.errors.requiredFte[0]}</p>
+            {shown?.errors?.requiredFte && (
+              <p className="text-sm text-destructive">{shown.errors.requiredFte[0]}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
@@ -134,17 +137,17 @@ export function RoleFormDialog(props: Props) {
               defaultValue={role?.requiredPeople ?? ""}
               placeholder="np. 2"
             />
-            {state?.errors?.requiredPeople && (
+            {shown?.errors?.requiredPeople && (
               <p className="text-sm text-destructive">
-                {state.errors.requiredPeople[0]}
+                {shown.errors.requiredPeople[0]}
               </p>
             )}
           </div>
           </div>
 
-          {state?.message && (
+          {shown?.message && (
             <Alert variant="destructive">
-              <AlertDescription>{state.message}</AlertDescription>
+              <AlertDescription>{shown.message}</AlertDescription>
             </Alert>
           )}
 

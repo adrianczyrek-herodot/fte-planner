@@ -1,9 +1,11 @@
-import { FileText, Trash2 } from "lucide-react";
+import { FileText } from "lucide-react";
 
 import { deleteAttachment } from "@/app/actions/projects";
-import { Button } from "@/components/ui/button";
+import { ConfirmDelete } from "@/components/confirm-delete";
 
-const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"];
+// Tylko formaty, które serwer pozwala wyświetlić w przeglądarce (patrz
+// /api/attachments). SVG idzie jako pobranie, więc podgląd by się nie wczytał.
+const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp"];
 
 function isImage(fileName: string) {
   const ext = fileName.split(".").pop()?.toLowerCase();
@@ -55,17 +57,15 @@ export function AttachmentList({ attachments }: { attachments: Attachment[] }) {
                 {attachment.fileName}
               </span>
             </a>
-            <form action={deleteAttachment} className="mt-1 flex justify-center">
-              <input type="hidden" name="id" value={attachment.id} />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Usuń załącznik ${attachment.fileName}`}
-              >
-                <Trash2 className="text-destructive" />
-              </Button>
-            </form>
+            <div className="mt-1 flex justify-center">
+              <ConfirmDelete
+                label={`Usuń załącznik ${attachment.fileName}`}
+                title="Usunąć załącznik?"
+                description={`Plik „${attachment.fileName}” zostanie trwale usunięty. Tej operacji nie można cofnąć.`}
+                action={deleteAttachment}
+                fields={{ id: attachment.id }}
+              />
+            </div>
           </li>
         );
       })}

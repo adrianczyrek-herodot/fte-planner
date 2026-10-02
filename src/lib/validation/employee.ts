@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import "@/lib/validation/locale";
+
 import { emailField } from "@/lib/validation/email";
 
 // Kompetencje wybierane ze słownika — z FormData przychodzą jako wiele
@@ -28,8 +30,16 @@ const role = z.enum(["user", "manager", "finance", "admin"]).default("user");
 
 export const EmployeeCreateSchema = z.object({
   email: emailField,
-  firstName: z.string().trim().min(1, { error: "Imię jest wymagane." }),
-  lastName: z.string().trim().min(1, { error: "Nazwisko jest wymagane." }),
+  firstName: z
+    .string()
+    .trim()
+    .min(1, { error: "Imię jest wymagane." })
+    .max(60, { error: "Imię może mieć najwyżej 60 znaków." }),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, { error: "Nazwisko jest wymagane." })
+    .max(80, { error: "Nazwisko może mieć najwyżej 80 znaków." }),
   positionId,
   skillIds,
   role,
@@ -37,8 +47,16 @@ export const EmployeeCreateSchema = z.object({
 
 export const EmployeeUpdateSchema = z.object({
   id: z.string().min(1),
-  firstName: z.string().trim().min(1, { error: "Imię jest wymagane." }),
-  lastName: z.string().trim().min(1, { error: "Nazwisko jest wymagane." }),
+  firstName: z
+    .string()
+    .trim()
+    .min(1, { error: "Imię jest wymagane." })
+    .max(60, { error: "Imię może mieć najwyżej 60 znaków." }),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, { error: "Nazwisko jest wymagane." })
+    .max(80, { error: "Nazwisko może mieć najwyżej 80 znaków." }),
   positionId,
   skillIds,
   role,

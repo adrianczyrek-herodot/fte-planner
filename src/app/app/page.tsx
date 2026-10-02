@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -8,7 +9,7 @@ import {
   Users,
 } from "lucide-react";
 
-import { getCurrentRole } from "@/app/actions/auth";
+import { getCurrentRole } from "@/lib/session";
 import { monthBounds } from "@/lib/period";
 import { prisma } from "@/lib/prisma";
 import { roleLabels } from "@/lib/permissions";
@@ -25,6 +26,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+export const metadata: Metadata = {
+  title: "Panel — FTE Planner",
+};
 
 export default async function AppDashboardPage() {
   const { session, role, capabilities } = await getCurrentRole();

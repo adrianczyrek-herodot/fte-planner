@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
+import { ignoreMissing, isUniqueViolation } from "@/lib/prisma-errors";
 import { pluralize } from "@/lib/plural";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import {
   DictionaryEntrySchema,
   type DictionaryFormState,
@@ -23,6 +24,15 @@ function revalidateAll() {
 }
 
 type Kind = "position" | "skill";
+
+// Duplikat to ta sama nazwa bez względu na wielkość liter: „react" obok
+// „React" to dla użytkownika jedna kompetencja.
+function findByName(kind: Kind, name: string) {
+  const where = { name: { equals: name, mode: "insensitive" as const } };
+  return kind === "position"
+    ? prisma.position.findFirst({ where })
+    : prisma.skill.findFirst({ where });
+}
 
 const labels: Record<Kind, { one: string; used: string }> = {
   position: {
@@ -45,17 +55,21 @@ export async function createDictionaryEntry(
   }
 
   const { name } = v.data;
-  const existing =
-    kind === "position"
-      ? await prisma.position.findUnique({ where: { name } })
-      : await prisma.skill.findUnique({ where: { name } });
+  const existing = await findByName(kind, name);
 
   if (existing) {
-    return { message: `${labels[kind].one} „${name}" już istnieje.` };
+    return { message: `${labels[kind].one} „${existing.name}" już istnieje.` };
   }
 
-  if (kind === "position") await prisma.position.create({ data: { name } });
-  else await prisma.skill.create({ data: { name } });
+  try {
+    if (kind === "position") await prisma.position.create({ data: { name } });
+    else await prisma.skill.create({ data: { name } });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { message: `${labels[kind].one} „${name}" już istnieje.` };
+    }
+    throw error;
+  }
 
   revalidateAll();
   return { success: true };
@@ -77,18 +91,30 @@ export async function renameDictionaryEntry(
   }
 
   const { name } = v.data;
-  const clash =
-    kind === "position"
-      ? await prisma.position.findUnique({ where: { name } })
-      : await prisma.skill.findUnique({ where: { name } });
+  const clash = await findByName(kind, name);
 
   if (clash && clash.id !== id) {
-    return { message: `${labels[kind].one} „${name}" już istnieje.` };
+    return { message: `${labels[kind].one} „${clash.name}" już istnieje.` };
   }
 
   // Nazwa jest referencją, więc zmiana propaguje się wszędzie sama.
-  if (kind === "position") await prisma.position.update({ where: { id }, data: { name } });
-  else await prisma.skill.update({ where: { id }, data: { name } });
+  let updated;
+  try {
+    updated = await ignoreMissing(
+      kind === "position"
+        ? prisma.position.update({ where: { id }, data: { name } })
+        : prisma.skill.update({ where: { id }, data: { name } })
+    );
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { message: `${labels[kind].one} „${name}" już istnieje.` };
+    }
+    throw error;
+  }
+  if (!updated) {
+    revalidateAll();
+    return { message: `${labels[kind].one} już nie istnieje — odśwież stronę.` };
+  }
 
   revalidateAll();
   return { success: true };
@@ -119,7 +145,7 @@ export async function deleteDictionaryEntry(
       ].filter(Boolean);
       return { ok: false, message: `${labels.position.used} Używa go: ${parts.join(", ")}.` };
     }
-    await prisma.position.delete({ where: { id } });
+    await ignoreMissing(prisma.position.delete({ where: { id } }));
   } else {
     const users = await prisma.user.count({ where: { skills: { some: { id } } } });
     if (users > 0) {
@@ -128,7 +154,7 @@ export async function deleteDictionaryEntry(
         message: `${labels.skill.used} Ma ją ${pluralize(users, "osoba", "osoby", "osób")}.`,
       };
     }
-    await prisma.skill.delete({ where: { id } });
+    await ignoreMissing(prisma.skill.delete({ where: { id } }));
   }
 
   revalidateAll();
@@ -150,10 +176,18 @@ export async function quickAddPosition(
   const v = DictionaryEntrySchema.safeParse({ name });
   if (!v.success) return { ok: false, message: v.error.issues[0].message };
 
-  const existing = await prisma.position.findUnique({ where: { name: v.data.name } });
+  const existing = await findByName("position", v.data.name);
   if (existing) return { ok: true, id: existing.id, name: existing.name };
 
-  const created = await prisma.position.create({ data: { name: v.data.name } });
+  let created;
+  try {
+    created = await prisma.position.create({ data: { name: v.data.name } });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    const winner = await findByName("position", v.data.name);
+    if (!winner) throw error;
+    return { ok: true, id: winner.id, name: winner.name };
+  }
   // Świadomie BEZ revalidatePath: odświeżenie trasy w trakcie tej akcji
   // unieważniało stan pickera (wybrana pozycja wracała do pustej). Nowe
   // stanowisko wystarczy dopisać po stronie klienta — pozostałe widoki

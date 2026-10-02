@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import { DictionaryManager } from "./_components/dictionary-manager";
 import { RateManager } from "./_components/rate-manager";
 import { pluralize } from "@/lib/plural";
@@ -29,12 +29,17 @@ export default async function SettingsPage() {
       select: { id: true, name: true, _count: { select: { users: true } } },
     }),
     prisma.user.findMany({
-      where: { status: { in: ["approved", "pending"] } },
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      // Oczekujący nie mają jeszcze przydziałów, więc stawka nie ma czego
+      // wycenić (a lista nie powinna pokazywać obcych rejestracji). Nieaktywni
+      // zostają: ich stawki dalej wyceniają historyczne przydziały i trzeba móc
+      // je poprawić.
+      where: { status: { in: ["approved", "inactive"] }, anonymizedAt: null },
+      orderBy: [{ status: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
       select: {
         id: true,
         firstName: true,
         lastName: true,
+        status: true,
         position: { select: { name: true } },
         rates: {
           orderBy: { validFrom: "desc" },
@@ -114,7 +119,12 @@ export default async function SettingsPage() {
         owners={employees.map((e) => ({
           id: e.id,
           label: `${e.firstName} ${e.lastName}`,
-          sublabel: e.position?.name ?? "brak stanowiska",
+          sublabel: [
+            e.position?.name ?? "brak stanowiska",
+            e.status === "inactive" ? "nieaktywny" : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
           rates: serializeRates(e.rates),
         }))}
       />

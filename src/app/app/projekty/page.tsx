@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import { todayInPoland } from "@/lib/timeline";
 import { PROJECT_LINK_FIELDS, type ProjectLinkKey } from "@/lib/validation/project";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,11 @@ export default async function ProjectsPage({
   // solely on the shared /app layout.
   await requireCapability("viewProjects");
 
-  const { status } = await searchParams;
+  const { status: rawStatus } = await searchParams;
+  // Nieznana wartość w adresie (np. ręcznie zmieniony link) = brak filtra.
+  const status = ["upcoming", "overdue", "no-due-date"].includes(rawStatus ?? "")
+    ? rawStatus!
+    : "all";
   // Porównujemy dni: projekt kończący się dziś jest jeszcze przed terminem.
   const now = todayInPoland();
 
@@ -33,7 +37,9 @@ export default async function ProjectsPage({
       ? { endDate: { gte: now } }
       : status === "overdue"
         ? { endDate: { lt: now } }
-        : {};
+        : status === "no-due-date"
+          ? { endDate: null }
+          : {};
 
   const positions = await prisma.position.findMany({
     orderBy: { name: "asc" },
@@ -101,7 +107,7 @@ export default async function ProjectsPage({
       </div>
 
       <Suspense fallback={null}>
-        <StatusFilter initialStatus={status ?? "all"} />
+        <StatusFilter initialStatus={status} />
       </Suspense>
 
       <ProjectsTable projects={projects} />

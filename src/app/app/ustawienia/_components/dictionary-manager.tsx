@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import {
@@ -8,7 +8,9 @@ import {
   deleteDictionaryEntry,
   renameDictionaryEntry,
 } from "@/app/actions/dictionaries";
+import { useActionForm, useFreshState } from "@/lib/hooks/use-action-form";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,16 +38,19 @@ export function DictionaryManager({
   addLabel: string;
   entries: Entry[];
 }) {
-  const [createState, createAction, creating] = useActionState(
+  const [createState, createAction, creating] = useActionForm(
     createDictionaryEntry.bind(null, kind),
     undefined
   );
-  const [renameState, renameAction, renaming] = useActionState(
+  const [renameState, renameAction, renaming] = useActionForm(
     renameDictionaryEntry.bind(null, kind),
     undefined
   );
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Błąd zmiany nazwy dotyczy edytowanej pozycji — po anulowaniu albo przejściu
+  // do innej pozycji nie może się pod nią pojawiać.
+  const renameShown = useFreshState(renameState, editingId);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
 
@@ -75,7 +80,7 @@ export function DictionaryManager({
       <CardContent className="flex flex-col gap-4">
         <form
           key={addKey}
-          action={createAction}
+          onSubmit={createAction}
           className="flex flex-wrap items-start gap-2"
         >
           <div className="flex min-w-56 flex-col gap-1">
@@ -113,7 +118,7 @@ export function DictionaryManager({
                 className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
               >
                 {editingId === entry.id ? (
-                  <form action={renameAction} className="flex flex-1 items-start gap-2">
+                  <form onSubmit={renameAction} className="flex flex-1 items-start gap-2">
                     <input type="hidden" name="id" value={entry.id} />
                     <div className="flex flex-1 flex-col gap-1">
                       <Input
@@ -123,13 +128,13 @@ export function DictionaryManager({
                         autoFocus
                         required
                       />
-                      {renameState?.errors?.name && (
+                      {renameShown?.errors?.name && (
                         <p className="text-sm text-destructive">
-                          {renameState.errors.name[0]}
+                          {renameShown.errors.name[0]}
                         </p>
                       )}
-                      {renameState?.message && (
-                        <p className="text-sm text-destructive">{renameState.message}</p>
+                      {renameShown?.message && (
+                        <p className="text-sm text-destructive">{renameShown.message}</p>
                       )}
                     </div>
                     <Button type="submit" size="icon-sm" disabled={renaming} aria-label="Zapisz nazwę">
@@ -167,22 +172,30 @@ export function DictionaryManager({
                       >
                         <Pencil />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={deleting || entry.inUse}
-                        onClick={() => remove(entry.id)}
-                        aria-label={`Usuń: ${entry.name}`}
-                        title={
-                          entry.inUse
-                            ? "Pozycja jest w użyciu — nie można jej usunąć"
-                            : "Usuń pozycję"
-                        }
-                      >
-                        <Trash2
-                          className={entry.inUse ? undefined : "text-destructive"}
+                      {entry.inUse ? (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled
+                          aria-label={`Usuń: ${entry.name}`}
+                          title="Pozycja jest w użyciu — nie można jej usunąć"
+                        >
+                          <Trash2 />
+                        </Button>
+                      ) : (
+                        <ConfirmDelete
+                          label={`Usuń: ${entry.name}`}
+                          title="Usunąć pozycję słownika?"
+                          description={
+                            kind === "position"
+                              ? `Stanowisko „${entry.name}” zostanie usunięte razem z historią jego stawek. Tej operacji nie można cofnąć.`
+                              : `Kompetencja „${entry.name}” zostanie usunięta. Tej operacji nie można cofnąć.`
+                          }
+                          action={() => remove(entry.id)}
+                          fields={{}}
+                          disabled={deleting}
                         />
-                      </Button>
+                      )}
                     </div>
                   </>
                 )}

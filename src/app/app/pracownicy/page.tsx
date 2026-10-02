@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { monthBounds } from "@/lib/period";
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import { employeeWorkload } from "@/lib/staffing";
 import { todayInPoland, ym } from "@/lib/timeline";
 import { SearchInput } from "./_components/search-input";
@@ -29,6 +29,9 @@ export default async function EmployeesPage({
   const { q, skill } = await searchParams;
   const query = q?.trim() ?? "";
   const skillFilter = skill?.trim() ?? "";
+  // Każde słowo musi pasować do imienia, nazwiska albo e-maila — dzięki temu
+  // „Anna Kowalska" znajduje Annę Kowalską, a nie zero wyników.
+  const words = query.split(/\s+/).filter(Boolean).slice(0, 5);
 
   // Bieżący miesiąc w formacie "YYYY-MM" — do kolumny "Obciążenie".
   const currentMonth = ym(todayInPoland());
@@ -38,15 +41,20 @@ export default async function EmployeesPage({
     prisma.user.findMany({
       where: {
         status: { in: ["pending", "approved", "inactive"] },
-        ...(query
+        ...(words.length > 0
           ? {
-              OR: [
-                { firstName: { contains: query, mode: "insensitive" } },
-                { lastName: { contains: query, mode: "insensitive" } },
-              ],
+              AND: words.map((word) => ({
+                OR: [
+                  { firstName: { contains: word, mode: "insensitive" as const } },
+                  { lastName: { contains: word, mode: "insensitive" as const } },
+                  { email: { contains: word, mode: "insensitive" as const } },
+                ],
+              })),
             }
           : {}),
-        ...(skillFilter ? { skills: { some: { name: skillFilter } } } : {}),
+        ...(skillFilter
+          ? { skills: { some: { name: { equals: skillFilter, mode: "insensitive" } } } }
+          : {}),
       },
       // Oczekujący na zatwierdzenie trafiają na górę (kolejność enuma:
       // pending → approved → inactive), potem alfabetycznie.
@@ -141,7 +149,12 @@ export default async function EmployeesPage({
           <SearchInput initialQuery={query} />
         </Suspense>
         <Suspense fallback={null}>
-          <SkillFilter skills={allSkills} initialSkill={skillFilter} />
+          <SkillFilter
+            skills={allSkills}
+            initialSkill={
+              allSkills.find((s) => s.toLowerCase() === skillFilter.toLowerCase()) ?? ""
+            }
+          />
         </Suspense>
       </div>
 

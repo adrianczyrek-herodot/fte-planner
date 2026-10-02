@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import "@/lib/validation/locale";
+
 import { dayString as day, decimalInput } from "@/lib/validation/date";
 
 // FTE zapisujemy z dokładnością do setnych (Decimal(4,2)), więc minimum

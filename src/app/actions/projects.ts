@@ -6,7 +6,8 @@ import { del, put } from "@vercel/blob";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/app/actions/auth";
+import { ignoreMissing } from "@/lib/prisma-errors";
+import { requireCapability } from "@/lib/session";
 import { parseYmd } from "@/lib/timeline";
 import { recomputeUserConflicts } from "@/lib/assignments-core";
 import {
@@ -134,20 +135,27 @@ export async function updateProject(
   const { name, description, startDate, endDate, budget, ...links } =
     validatedFields.data;
 
-  await prisma.project.update({
-    where: { id },
-    data: {
-      name,
-      description: description || null,
-      startDate,
-      endDate,
-      budget,
-      ...links,
-    },
-  });
+  const updated = await ignoreMissing(
+    prisma.project.update({
+      where: { id },
+      data: {
+        name,
+        description: description || null,
+        startDate,
+        endDate,
+        budget,
+        ...links,
+      },
+    })
+  );
+  if (!updated) {
+    revalidatePath(PROJECTS_PATH);
+    return { message: "Ten projekt został już usunięty — odśwież stronę." };
+  }
 
   revalidatePath(PROJECTS_PATH);
   revalidatePath(`${PROJECTS_PATH}/${id}`);
+  revalidatePath(TIMELINE_PATH);
   return { success: true };
 }
 
@@ -168,6 +176,16 @@ export async function uploadAttachment(
 
   if (file.size > MAX_ATTACHMENT_BYTES) {
     return { message: `Plik jest zbyt duży (maksymalnie ${MAX_ATTACHMENT_LABEL}).` };
+  }
+
+  // Sprawdzamy przed wysyłką do magazynu — inaczej plik do usuniętego projektu
+  // trafiłby do Bloba, a zapis w bazie by się nie udał i plik zostałby sierotą.
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true },
+  });
+  if (!project) {
+    return { message: "Ten projekt został już usunięty — odśwież stronę." };
   }
 
   // Storage bywa nieskonfigurowany (brak BLOB_READ_WRITE_TOKEN) albo chwilowo
@@ -218,7 +236,7 @@ export async function deleteAttachment(formData: FormData) {
     return;
   }
 
-  await prisma.attachment.delete({ where: { id } });
+  await ignoreMissing(prisma.attachment.delete({ where: { id } }));
   // Sprzątanie pliku z Blob store — best-effort (nie blokuj, gdy brak tokenu).
   await del(attachment.fileUrl).catch(() => {});
 
@@ -248,7 +266,8 @@ export async function deleteProject(formData: FormData) {
   });
 
   // Kasacja projektu usuwa kaskadowo attachments i assignments (onDelete: Cascade).
-  await prisma.project.delete({ where: { id } });
+  // Już usunięty (np. w drugiej karcie) — wystarczy odświeżyć listę.
+  await ignoreMissing(prisma.project.delete({ where: { id } }));
   for (const { userId } of affected) await recomputeUserConflicts(prisma, userId);
 
   // Best-effort usunięcie osieroconych plików z Blob store.
@@ -292,10 +311,16 @@ export async function rescheduleProject(
     };
   }
 
-  await prisma.project.update({
-    where: { id: projectId },
-    data: { startDate, endDate },
-  });
+  const updated = await ignoreMissing(
+    prisma.project.update({
+      where: { id: projectId },
+      data: { startDate, endDate },
+    })
+  );
+  if (!updated) {
+    revalidatePath(TIMELINE_PATH);
+    return { ok: false, message: "Ten projekt został już usunięty." };
+  }
 
   revalidatePath(TIMELINE_PATH);
   revalidatePath(PROJECTS_PATH);

@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
+import { useActionForm } from "@/lib/hooks/use-action-form";
 import { login } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function LoginForm() {
-  const [state, action, pending] = useActionState(login, undefined);
+  const [state, action, pending] = useActionForm(login, undefined);
+  // Ścieżka, na którą ktoś szedł przed przekierowaniem do logowania.
+  const next = useSearchParams().get("next") ?? "";
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={action} className="flex flex-col gap-4">
+      <input type="hidden" name="next" value={next} />
       <div className="flex flex-col gap-2">
         <Label htmlFor="email">E-mail</Label>
         <Input id="email" name="email" type="email" placeholder="jan.kowalski@firma.pl" required />

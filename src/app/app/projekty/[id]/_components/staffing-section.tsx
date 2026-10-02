@@ -6,13 +6,14 @@
 // ładowań Slot nie potrafił się na nich osadzić i strona kończyła się błędem
 // "Primitive.button failed to slot onto its children". Trzymanie całego
 // poddrzewa po stronie klienta usuwa tę granicę.
-import { Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
+import { Pencil, Plus, UserPlus, Users } from "lucide-react";
 
 import { deleteAssignment, deleteProjectRole } from "@/app/actions/staffing";
 import { formatMonthLabel, formatYmdRange } from "@/lib/timeline";
 import { formatFte } from "@/lib/fte";
 import { pluralize } from "@/lib/plural";
 import { cn } from "@/lib/utils";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -198,17 +199,17 @@ export function StaffingSection({
                       </Button>
                     }
                   />
-                  <form action={deleteProjectRole}>
-                    <input type="hidden" name="id" value={role.id} />
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Usuń rolę"
-                    >
-                      <Trash2 className="text-destructive" />
-                    </Button>
-                  </form>
+                  <ConfirmDelete
+                    label="Usuń rolę"
+                    title="Usunąć rolę?"
+                    description={
+                      role.assignments.length > 0
+                        ? `Rola „${role.position}” zostanie usunięta razem z obsadą (${pluralize(role.assignments.length, "przydział", "przydziały", "przydziałów")}). Tej operacji nie można cofnąć.`
+                        : `Rola „${role.position}” zostanie usunięta. Tej operacji nie można cofnąć.`
+                    }
+                    action={deleteProjectRole}
+                    fields={{ id: role.id }}
+                  />
                 </div>
               </div>
 
@@ -288,17 +289,13 @@ export function StaffingSection({
                             </Button>
                           }
                         />
-                        <form action={deleteAssignment}>
-                          <input type="hidden" name="id" value={a.id} />
-                          <Button
-                            type="submit"
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="Usuń obsadę"
-                          >
-                            <Trash2 className="text-destructive" />
-                          </Button>
-                        </form>
+                        <ConfirmDelete
+                          label="Usuń obsadę"
+                          title="Usunąć przydział?"
+                          description={`Przydział osoby ${a.name} do roli „${role.position}” (${formatYmdRange(a.startDate, a.endDate)}) zostanie usunięty. Tej operacji nie można cofnąć.`}
+                          action={deleteAssignment}
+                          fields={{ id: a.id }}
+                        />
                       </div>
                     </div>
                   ))

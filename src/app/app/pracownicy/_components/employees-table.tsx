@@ -105,7 +105,7 @@ export function EmployeesTable({
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/app/pracownicy/${employee.id}`}
-                    className="hover:underline"
+                    className="max-w-[28ch] break-words hover:underline"
                   >
                     {employee.firstName} {employee.lastName}
                   </Link>

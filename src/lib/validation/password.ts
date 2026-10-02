@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import "@/lib/validation/locale";
+
 import { emailField } from "@/lib/validation/email";
 
 const passwordRules = z

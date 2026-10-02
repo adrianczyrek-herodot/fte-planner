@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { Upload } from "lucide-react";
 
+import { useActionForm } from "@/lib/hooks/use-action-form";
 import { uploadAttachment } from "@/app/actions/projects";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,7 @@ import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_LABEL } from "@/lib/validation/pro
 
 export function AttachmentUploadForm({ projectId }: { projectId: string }) {
   const action = uploadAttachment.bind(null, projectId);
-  const [state, formAction, pending] = useActionState(action, undefined);
+  const [state, formAction, pending] = useActionForm(action, undefined);
 
   // Wyczyść input pliku po udanym uploadzie przez remount formularza.
   const [formKey, setFormKey] = useState(0);
@@ -28,7 +29,7 @@ export function AttachmentUploadForm({ projectId }: { projectId: string }) {
     : state?.message;
 
   return (
-    <form key={formKey} action={formAction} className="flex flex-col gap-2">
+    <form key={formKey} onSubmit={formAction} className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <Input
           type="file"

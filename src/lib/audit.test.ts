@@ -64,5 +64,7 @@ describe("statusChangeAction", () => {
   it("mapuje status na właściwe zdarzenie", () => {
     expect(statusChangeAction("approved")).toBe("employee_activated");
     expect(statusChangeAction("inactive")).toBe("employee_deactivated");
+    expect(statusChangeAction("approved", "pending")).toBe("registration_approved");
+    expect(statusChangeAction("approved", "inactive")).toBe("employee_activated");
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 
+import { useActionForm, useFreshState } from "@/lib/hooks/use-action-form";
 import { createEmployee, updateEmployee } from "@/app/actions/employees";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { NO_POSITION } from "@/lib/validation/employee";
@@ -43,6 +44,8 @@ type Props = (
 ) & {
   positions: { id: string; name: string }[];
   skills: { id: string; name: string }[];
+  /** Własne konto: roli nie zmienia się samemu (serwer i tak by to zignorował). */
+  isSelf?: boolean;
 };
 
 export function EmployeeFormDialog({
@@ -51,10 +54,13 @@ export function EmployeeFormDialog({
   employee,
   positions,
   skills,
+  isSelf = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const action = mode === "create" ? createEmployee : updateEmployee;
-  const [state, formAction, pending] = useActionState(action, undefined);
+  const [state, formAction, pending] = useActionForm(action, undefined);
+  // Błędy z poprzedniego otwarcia dialogu nie powinny wisieć nad nowym formularzem.
+  const shown = useFreshState(state, open);
 
   useActionEffect(state, (s) => {
     if (s?.success && open) setOpen(false);
@@ -76,7 +82,7 @@ export function EmployeeFormDialog({
         </DialogHeader>
 
         {/* Remount on open/close so uncontrolled inputs clear between submissions. */}
-        <form key={String(open)} action={formAction} className="flex flex-col gap-4">
+        <form key={String(open)} onSubmit={formAction} className="flex flex-col gap-4">
           {mode === "edit" && <input type="hidden" name="id" value={employee.id} />}
 
           {mode === "create" && (
@@ -89,8 +95,8 @@ export function EmployeeFormDialog({
                 placeholder="jan.kowalski@firma.pl"
                 required
               />
-              {state?.errors?.email && (
-                <p className="text-sm text-destructive">{state.errors.email[0]}</p>
+              {shown?.errors?.email && (
+                <p className="text-sm text-destructive">{shown.errors.email[0]}</p>
               )}
             </div>
           )}
@@ -104,8 +110,8 @@ export function EmployeeFormDialog({
                 defaultValue={employee?.firstName}
                 required
               />
-              {state?.errors?.firstName && (
-                <p className="text-sm text-destructive">{state.errors.firstName[0]}</p>
+              {shown?.errors?.firstName && (
+                <p className="text-sm text-destructive">{shown.errors.firstName[0]}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -116,8 +122,8 @@ export function EmployeeFormDialog({
                 defaultValue={employee?.lastName}
                 required
               />
-              {state?.errors?.lastName && (
-                <p className="text-sm text-destructive">{state.errors.lastName[0]}</p>
+              {shown?.errors?.lastName && (
+                <p className="text-sm text-destructive">{shown.errors.lastName[0]}</p>
               )}
             </div>
           </div>
@@ -140,8 +146,8 @@ export function EmployeeFormDialog({
             <p className="text-xs text-muted-foreground">
               Lista pochodzi ze słownika w Ustawieniach.
             </p>
-            {state?.errors?.positionId && (
-              <p className="text-sm text-destructive">{state.errors.positionId[0]}</p>
+            {shown?.errors?.positionId && (
+              <p className="text-sm text-destructive">{shown.errors.positionId[0]}</p>
             )}
           </div>
 
@@ -157,12 +163,12 @@ export function EmployeeFormDialog({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="role">Rola</Label>
-            <Select name="role" defaultValue={employee?.role ?? "user"}>
+            <Select name="role" defaultValue={employee?.role ?? "user"} disabled={isSelf}>
               <SelectTrigger id="role" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">Użytkownik (ograniczony dostęp)</SelectItem>
+                <SelectItem value="user">Pracownik (tylko własne przydziały)</SelectItem>
                 <SelectItem value="manager">Menedżer (projekty i zasoby)</SelectItem>
                 <SelectItem value="finance">
                   Administracja (słowniki i stawki)
@@ -170,11 +176,16 @@ export function EmployeeFormDialog({
                 <SelectItem value="admin">Administrator (pełny dostęp)</SelectItem>
               </SelectContent>
             </Select>
+            {isSelf && (
+              <p className="text-xs text-muted-foreground">
+                Własnej roli nie możesz zmienić — poproś o to innego administratora.
+              </p>
+            )}
           </div>
 
-          {state?.message && (
+          {shown?.message && (
             <Alert variant="destructive">
-              <AlertDescription>{state.message}</AlertDescription>
+              <AlertDescription>{shown.message}</AlertDescription>
             </Alert>
           )}
 

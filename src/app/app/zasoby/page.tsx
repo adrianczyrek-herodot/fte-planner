@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import { formatFte } from "@/lib/fte";
 import { monthBounds } from "@/lib/period";
 import { employeeWorkload, type WorkloadMonth } from "@/lib/staffing";
@@ -60,8 +60,12 @@ export default async function ZasobyPage({
   await requireCapability("viewResources");
 
   const sp = await searchParams;
-  const range = sp.range ?? "quarter";
-  const status = sp.status ?? "all";
+  // Nieznane wartości w adresie traktujemy jak domyślne, żeby select nie był
+  // pusty, a widok nie pokazywał czegoś innego, niż sugerują filtry.
+  const range = ["quarter", "next-quarter", "half-year"].includes(sp.range ?? "")
+    ? sp.range!
+    : "quarter";
+  const status = ["available", "over"].includes(sp.status ?? "") ? sp.status! : "all";
   const skill = sp.skill?.trim() ?? "";
 
   const months = monthsForRange(range);
@@ -70,7 +74,7 @@ export default async function ZasobyPage({
     prisma.user.findMany({
       where: {
         status: "approved",
-        ...(skill ? { skills: { some: { name: skill } } } : {}),
+        ...(skill ? { skills: { some: { name: { equals: skill, mode: "insensitive" } } } } : {}),
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: {
@@ -134,7 +138,12 @@ export default async function ZasobyPage({
       </div>
 
       <Suspense fallback={null}>
-        <ZasobyFilters range={range} status={status} skill={skill} skills={allSkills} />
+        <ZasobyFilters
+          range={range}
+          status={status}
+          skill={allSkills.find((s) => s.toLowerCase() === skill.toLowerCase()) ?? ""}
+          skills={allSkills}
+        />
       </Suspense>
 
       {rows.length === 0 ? (
@@ -174,7 +183,7 @@ export default async function ZasobyPage({
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-b last:border-0">
-                  <td className="sticky left-0 z-10 bg-card px-4 py-2">
+                  <td className="sticky left-0 z-10 max-w-64 bg-card px-4 py-2 break-words">
                     <div className="font-medium">
                       <Link
                         href={`/app/pracownicy/${r.id}`}
@@ -190,6 +199,15 @@ export default async function ZasobyPage({
                           {s}
                         </Badge>
                       ))}
+                      {r.skillNames.length > 3 && (
+                        <Badge
+                          variant="outline"
+                          className="font-normal"
+                          title={r.skillNames.slice(3).join(", ")}
+                        >
+                          +{r.skillNames.length - 3}
+                        </Badge>
+                      )}
                     </div>
                   </td>
                   {r.cells.map((w) => (

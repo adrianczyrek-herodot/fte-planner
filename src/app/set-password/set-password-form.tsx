@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
 import Link from "next/link";
 
+import { useActionForm } from "@/lib/hooks/use-action-form";
 import { setPassword } from "@/app/actions/password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function SetPasswordForm({ token }: { token: string }) {
-  const [state, action, pending] = useActionState(setPassword, undefined);
+  const [state, action, pending] = useActionForm(setPassword, undefined);
 
   if (state?.success) {
     return (
@@ -28,7 +28,7 @@ export function SetPasswordForm({ token }: { token: string }) {
   }
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={action} className="flex flex-col gap-4">
       <input type="hidden" name="token" value={token} />
 
       <div className="flex flex-col gap-2">

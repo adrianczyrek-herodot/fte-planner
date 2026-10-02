@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import "@/lib/validation/locale";
+
 import { parseYmd } from "@/lib/timeline";
 
 // Rozsądny zakres lat. Nie chodzi o politykę firmy, tylko o literówki: rok

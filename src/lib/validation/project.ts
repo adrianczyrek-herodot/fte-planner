@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import "@/lib/validation/locale";
+
 import { decimalInput, optionalDayDate } from "@/lib/validation/date";
 
 // Puste → null; inaczej dzień (UTC-północ) z rozsądnego zakresu lat. Parsowanie
@@ -44,8 +46,16 @@ export type ProjectLinkKey = (typeof PROJECT_LINK_FIELDS)[number]["key"];
 
 export const ProjectSchema = z
   .object({
-    name: z.string().trim().min(1, { error: "Nazwa jest wymagana." }),
-    description: z.string().trim().optional(),
+    name: z
+      .string()
+      .trim()
+      .min(1, { error: "Nazwa jest wymagana." })
+      .max(120, { error: "Nazwa może mieć najwyżej 120 znaków." }),
+    description: z
+      .string()
+      .trim()
+      .max(2000, { error: "Opis może mieć najwyżej 2000 znaków." })
+      .optional(),
     startDate: optionalDate,
     endDate: optionalDate,
     budget: optionalBudget,
@@ -70,6 +80,7 @@ export type ProjectFormState =
       success?: boolean;
       errors?: {
         name?: string[];
+        description?: string[];
         startDate?: string[];
         endDate?: string[];
         budget?: string[];

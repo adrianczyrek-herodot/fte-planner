@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
+import { useActionForm, useFreshState } from "@/lib/hooks/use-action-form";
 import { createProject, updateProject } from "@/app/actions/projects";
 import { PROJECT_LINK_FIELDS } from "@/lib/validation/project";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
@@ -67,7 +68,9 @@ export function ProjectFormDialog({
 }: Props) {
   const [open, setOpen] = useState(false);
   const action = mode === "create" ? createProject : updateProject;
-  const [state, formAction, pending] = useActionState(action, undefined);
+  const [state, formAction, pending] = useActionForm(action, undefined);
+  // Błędy z poprzedniego otwarcia dialogu nie powinny wisieć nad nowym formularzem.
+  const shown = useFreshState(state, open);
 
   // Daty są kontrolowane, żeby nowe wiersze roli mogły domyślnie dostać okres
   // projektu — bez tego trzeba by go przepisywać ręcznie przy każdej roli.
@@ -81,6 +84,18 @@ export function ProjectFormDialog({
   useActionEffect(state, (s) => {
     if (s?.success && open) setOpen(false);
   });
+
+  // Pola kontrolowane nie resetują się remontem formularza, więc przy każdym
+  // otwarciu przywracamy je do zapisanych wartości — inaczej porzucona zmiana
+  // daty wracała po ponownym otwarciu i zapisywała się przy innej edycji.
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      setStartDate(toDateInputValue(project?.startDate));
+      setEndDate(toDateInputValue(project?.endDate));
+      setRoles([]);
+    }
+    setOpen(next);
+  }
 
   function addRole() {
     setRoles((r) => [
@@ -104,7 +119,7 @@ export function ProjectFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
@@ -119,7 +134,7 @@ export function ProjectFormDialog({
         </DialogHeader>
 
         {/* Remount on open/close so uncontrolled inputs clear between submissions. */}
-        <form key={String(open)} action={formAction} className="flex flex-col gap-4">
+        <form key={String(open)} onSubmit={formAction} className="flex flex-col gap-4">
           {mode === "edit" && <input type="hidden" name="id" value={project.id} />}
 
           <div className="flex flex-col gap-2">
@@ -129,10 +144,11 @@ export function ProjectFormDialog({
               name="name"
               defaultValue={project?.name}
               placeholder="np. Wdrożenie platformy X"
+              maxLength={120}
               required
             />
-            {state?.errors?.name && (
-              <p className="text-sm text-destructive">{state.errors.name[0]}</p>
+            {shown?.errors?.name && (
+              <p className="text-sm text-destructive">{shown.errors.name[0]}</p>
             )}
           </div>
 
@@ -144,7 +160,11 @@ export function ProjectFormDialog({
               defaultValue={project?.description ?? ""}
               placeholder="Krótki opis projektu"
               rows={3}
+              maxLength={2000}
             />
+            {shown?.errors?.description && (
+              <p className="text-sm text-destructive">{shown.errors.description[0]}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -157,8 +177,8 @@ export function ProjectFormDialog({
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
-              {state?.errors?.startDate && (
-                <p className="text-sm text-destructive">{state.errors.startDate[0]}</p>
+              {shown?.errors?.startDate && (
+                <p className="text-sm text-destructive">{shown.errors.startDate[0]}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -170,8 +190,8 @@ export function ProjectFormDialog({
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
-              {state?.errors?.endDate && (
-                <p className="text-sm text-destructive">{state.errors.endDate[0]}</p>
+              {shown?.errors?.endDate && (
+                <p className="text-sm text-destructive">{shown.errors.endDate[0]}</p>
               )}
             </div>
           </div>
@@ -187,8 +207,8 @@ export function ProjectFormDialog({
               defaultValue={project?.budget != null ? String(project.budget) : ""}
               placeholder="np. 150000"
             />
-            {state?.errors?.budget && (
-              <p className="text-sm text-destructive">{state.errors.budget[0]}</p>
+            {shown?.errors?.budget && (
+              <p className="text-sm text-destructive">{shown.errors.budget[0]}</p>
             )}
           </div>
 
@@ -311,18 +331,18 @@ export function ProjectFormDialog({
                   defaultValue={project?.[field.key] ?? ""}
                   placeholder="https://"
                 />
-                {state?.errors?.[field.key] && (
+                {shown?.errors?.[field.key] && (
                   <p className="text-sm text-destructive">
-                    {state.errors[field.key]![0]}
+                    {shown.errors[field.key]![0]}
                   </p>
                 )}
               </div>
             ))}
           </fieldset>
 
-          {state?.message && (
+          {shown?.message && (
             <Alert variant="destructive">
-              <AlertDescription>{state.message}</AlertDescription>
+              <AlertDescription>{shown.message}</AlertDescription>
             </Alert>
           )}
 

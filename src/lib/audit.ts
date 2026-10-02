@@ -12,6 +12,8 @@ export const AUDIT_ACTIONS = [
   "employee_deactivated",
   "employee_activated",
   "employee_role_changed",
+  "registration_approved",
+  "registration_rejected",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -21,11 +23,13 @@ export const auditActionLabels: Record<AuditAction, string> = {
   employee_deactivated: "Dezaktywacja konta",
   employee_activated: "Aktywacja konta",
   employee_role_changed: "Zmiana roli",
+  registration_approved: "Zatwierdzenie rejestracji",
+  registration_rejected: "Odrzucenie rejestracji",
 };
 
 /** Czy zdarzenie jest nieodwracalne — interfejs wyróżnia je wizualnie. */
 export function isIrreversible(action: AuditAction): boolean {
-  return action === "employee_anonymized";
+  return action === "employee_anonymized" || action === "registration_rejected";
 }
 
 export type AuditEntry = {
@@ -59,9 +63,18 @@ export function roleChangeDetails(from: Role, to: Role): string {
   return `rola: ${roleLabels[from]} → ${roleLabels[to]}`;
 }
 
-/** Zdarzenie wynikające ze zmiany statusu konta. */
+/**
+ * Zdarzenie wynikające ze zmiany statusu konta. Zatwierdzenie nowej rejestracji
+ * to co innego niż przywrócenie dezaktywowanego pracownika, więc w dzienniku
+ * mają różne nazwy.
+ */
 export function statusChangeAction(
-  status: "approved" | "inactive"
-): Extract<AuditAction, "employee_activated" | "employee_deactivated"> {
-  return status === "approved" ? "employee_activated" : "employee_deactivated";
+  status: "approved" | "inactive",
+  previous: "pending" | "approved" | "inactive" = "inactive"
+): Extract<
+  AuditAction,
+  "employee_activated" | "employee_deactivated" | "registration_approved"
+> {
+  if (status === "inactive") return "employee_deactivated";
+  return previous === "pending" ? "registration_approved" : "employee_activated";
 }

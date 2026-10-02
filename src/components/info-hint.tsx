@@ -31,7 +31,14 @@ export function InfoHint({
       <TooltipTrigger
         type="button"
         aria-label={label}
-        onClick={() => setOpen((v) => !v)}
+        // Radix po kliknięciu i wciśnięciu triggera ZAMYKA dymek — na dotyku
+        // zamykał go zaraz po otwarciu. preventDefault wyłącza tę wbudowaną
+        // obsługę, więc o stanie decyduje wyłącznie nasze przełączanie.
+        onPointerDown={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.preventDefault()
+          setOpen((v) => !v)
+        }}
         className={cn(
           "inline-flex shrink-0 cursor-help text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
           className

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { CalendarRange } from "lucide-react";
 
 import {
@@ -63,7 +64,9 @@ export default function LoginPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <LoginForm />
+              <Suspense fallback={null}>
+                <LoginForm />
+              </Suspense>
             </CardContent>
           </Card>
         </div>

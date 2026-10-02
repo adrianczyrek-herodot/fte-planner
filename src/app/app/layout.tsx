@@ -1,4 +1,4 @@
-import { getCurrentRole } from "@/app/actions/auth";
+import { getCurrentRole } from "@/lib/session";
 import { Brand } from "@/components/brand";
 import { MobileNav } from "./_components/mobile-nav";
 import { SidebarNav } from "./_components/sidebar-nav";

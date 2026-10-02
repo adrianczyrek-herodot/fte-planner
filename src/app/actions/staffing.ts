@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { ignoreMissing } from "@/lib/prisma-errors";
 import { formatYmdRange, parseYmd, ymd } from "@/lib/timeline";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import { recomputeUserConflicts } from "@/lib/assignments-core";
 import {
   AssignmentFormState,
@@ -84,17 +85,20 @@ export async function updateProjectRole(
   });
   if (!v.success) return { errors: z.flattenError(v.error).fieldErrors };
 
-  const role = await prisma.projectRole.update({
-    where: { id },
-    data: {
-      positionId: v.data.positionId,
-      startDate: parseYmd(v.data.startDate),
-      endDate: parseYmd(v.data.endDate),
-      requiredFte: round2(v.data.requiredFte),
-      requiredPeople: v.data.requiredPeople,
-    },
-    select: { projectId: true },
-  });
+  const role = await ignoreMissing(
+    prisma.projectRole.update({
+      where: { id },
+      data: {
+        positionId: v.data.positionId,
+        startDate: parseYmd(v.data.startDate),
+        endDate: parseYmd(v.data.endDate),
+        requiredFte: round2(v.data.requiredFte),
+        requiredPeople: v.data.requiredPeople,
+      },
+      select: { projectId: true },
+    })
+  );
+  if (!role) return { message: "Ta rola została już usunięta — odśwież stronę." };
 
   revalidateStaffing(role.projectId);
   return { success: true };
@@ -115,7 +119,7 @@ export async function deleteProjectRole(formData: FormData) {
   const affectedUsers = [...new Set(role.assignments.map((a) => a.userId))];
 
   // Kasacja roli usuwa kaskadowo jej obsadę → przeliczamy konflikt dotkniętych osób.
-  await prisma.projectRole.delete({ where: { id } });
+  await ignoreMissing(prisma.projectRole.delete({ where: { id } }));
   for (const userId of affectedUsers) await recomputeUserConflicts(prisma, userId);
 
   revalidateStaffing(role.projectId);
@@ -191,10 +195,13 @@ export async function createOrUpdateAssignment(
 
   if (assignmentId && existing) {
     affected.add(existing.userId);
-    await prisma.assignment.update({
-      where: { id: assignmentId },
-      data: { userId, startDate, endDate, fte },
-    });
+    const updated = await ignoreMissing(
+      prisma.assignment.update({
+        where: { id: assignmentId },
+        data: { userId, startDate, endDate, fte },
+      })
+    );
+    if (!updated) return { message: "Przydział już nie istnieje — odśwież stronę." };
   } else {
     await prisma.assignment.create({
       data: { projectRoleId, userId, startDate, endDate, fte },
@@ -213,10 +220,17 @@ export async function deleteAssignment(formData: FormData) {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;
 
-  const deleted = await prisma.assignment.delete({
-    where: { id },
-    select: { userId: true, projectRole: { select: { projectId: true } } },
-  });
+  const deleted = await ignoreMissing(
+    prisma.assignment.delete({
+      where: { id },
+      select: { userId: true, projectRole: { select: { projectId: true } } },
+    })
+  );
+  // Już usunięty (np. w drugiej karcie) — odświeżamy widoki i kończymy.
+  if (!deleted) {
+    revalidatePath("/app/projekty", "layout");
+    return;
+  }
 
   await recomputeUserConflicts(prisma, deleted.userId);
   revalidateStaffing(deleted.projectRole.projectId);

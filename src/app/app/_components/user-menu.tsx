@@ -1,6 +1,7 @@
 import { LogOut } from "lucide-react";
 
 import { logout } from "@/app/actions/auth";
+import { roleLabels } from "@/lib/permissions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,12 +23,13 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-const roleLabel = {
-  finance: "administracja",
-  admin: "Administrator",
-  manager: "Menedżer",
-  user: "Użytkownik",
-} as const;
+// Te same nazwy ról co w całej aplikacji (permissions.ts), tylko wielką literą.
+const roleLabel = Object.fromEntries(
+  Object.entries(roleLabels).map(([role, label]) => [
+    role,
+    label.charAt(0).toUpperCase() + label.slice(1),
+  ])
+) as Record<keyof typeof roleLabels, string>;
 
 export function UserMenu({
   name,

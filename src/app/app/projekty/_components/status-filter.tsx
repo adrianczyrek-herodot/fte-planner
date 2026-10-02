@@ -25,7 +25,9 @@ export function StatusFilter({ initialStatus }: { initialStatus: string }) {
   }
 
   return (
-    <Select defaultValue={initialStatus} onValueChange={handleChange}>
+    // Wartość pochodzi z adresu (props z serwera), a nie z wewnętrznego stanu —
+    // inaczej po kliknięciu „Projekty" w menu select pokazywał stary filtr.
+    <Select value={initialStatus} onValueChange={handleChange}>
       <SelectTrigger className="w-52">
         <SelectValue placeholder="Filtruj po terminie" />
       </SelectTrigger>
@@ -33,6 +35,7 @@ export function StatusFilter({ initialStatus }: { initialStatus: string }) {
         <SelectItem value="all">Wszystkie projekty</SelectItem>
         <SelectItem value="upcoming">Przed terminem</SelectItem>
         <SelectItem value="overdue">Po terminie</SelectItem>
+        <SelectItem value="no-due-date">Bez terminu</SelectItem>
       </SelectContent>
     </Select>
   );

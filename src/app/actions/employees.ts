@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { emailLookup } from "@/lib/validation/email";
 import { anonymizedIdentity } from "@/lib/anonymize";
 import { auditEntry, roleChangeDetails, statusChangeAction } from "@/lib/audit";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import { createPasswordResetToken } from "@/lib/tokens";
 import { sendPasswordSetupEmail } from "@/lib/mail";
 import {
@@ -138,6 +138,39 @@ export async function updateEmployee(
   return { success: true };
 }
 
+/**
+ * Odrzucenie rejestracji: konto oczekujące znika całkowicie. Takie konto nie ma
+ * przydziałów ani kosztów (zatwierdzenie jest warunkiem obsady), więc nie ma
+ * czego zachowywać — w przeciwieństwie do anonimizacji, która trzyma historię.
+ * Dzięki temu przypadkowa albo obca rejestracja nie wisi na liście na zawsze.
+ */
+export async function rejectRegistration(formData: FormData) {
+  const { session } = await requireCapability("manageEmployees");
+
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { status: true, _count: { select: { assignments: true } } },
+  });
+  // Tylko konta oczekujące i bez historii — resztę obsługuje dezaktywacja.
+  if (!user || user.status !== "pending" || user._count.assignments > 0) return;
+
+  await prisma.$transaction([
+    prisma.user.delete({ where: { id } }),
+    prisma.auditEvent.create({
+      data: auditEntry({
+        actorId: session.user.id,
+        action: "registration_rejected",
+        targetUserId: id,
+      }),
+    }),
+  ]);
+
+  revalidatePath(EMPLOYEES_PATH);
+}
+
 export async function setEmployeeStatus(formData: FormData) {
   const { session } = await requireCapability("manageEmployees");
 
@@ -188,7 +221,7 @@ export async function setEmployeeStatus(formData: FormData) {
     prisma.auditEvent.create({
       data: auditEntry({
         actorId: session.user.id,
-        action: statusChangeAction(status),
+        action: statusChangeAction(status, biezacy.status),
         targetUserId: id,
       }),
     }),

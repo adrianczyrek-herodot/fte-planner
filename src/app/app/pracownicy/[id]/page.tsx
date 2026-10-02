@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ClipboardList, Gauge } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/app/actions/auth";
+import { getCurrentRole, requireCapability } from "@/lib/session";
 import { can, roleLabels } from "@/lib/permissions";
 import { employeeWorkload, monthsBetween } from "@/lib/staffing";
 import { formatMonthLabel, ym, ymd, formatYmdRange, todayInPoland } from "@/lib/timeline";
@@ -27,6 +27,10 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
+  // Tytuł karty nie może zdradzić nazwiska komuś, kto tej karty nie zobaczy
+  // (strona i tak go przekieruje, ale <title> trafiał już do odpowiedzi).
+  const { role } = await getCurrentRole();
+  if (!can(role, "viewResources")) return { title: "FTE Planner" };
   const user = await prisma.user.findUnique({
     where: { id },
     select: { firstName: true, lastName: true },

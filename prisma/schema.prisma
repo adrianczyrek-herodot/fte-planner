@@ -318,6 +318,8 @@ enum AuditAction {
   employee_deactivated
   employee_activated
   employee_role_changed
+  registration_approved
+  registration_rejected
 }
 
 /// Ślad po operacjach nieodwracalnych lub zmieniających czyjeś uprawnienia.

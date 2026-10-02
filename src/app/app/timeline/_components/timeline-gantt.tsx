@@ -180,6 +180,16 @@ export function TimelineGantt({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Niezapisane przesunięcia giną przy odświeżeniu albo zamknięciu karty —
+  // przeglądarka zapyta wtedy, czy na pewno wyjść.
+  const hasStaged = Object.keys(staged).length > 0;
+  useEffect(() => {
+    if (!hasStaged) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasStaged]);
+
   function startDrag(e: React.PointerEvent, id: string, mode: Mode) {
     e.preventDefault();
     e.stopPropagation();
@@ -204,15 +214,19 @@ export function TimelineGantt({
       setStaged((p) => ({ ...p, [id]: { startDay, endDay } }));
     };
 
+    // pointercancel przychodzi m.in., gdy przeglądarka przejmie gest dotykowy —
+    // bez niego przeciąganie „wisiało" z podpiętymi nasłuchami.
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       setDragId(null);
       setNotice(null);
     };
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     setDragId(id);
   }
 
@@ -465,7 +479,12 @@ export function TimelineGantt({
                     className="absolute inset-x-0 border-b"
                     style={{ top, height: v.height }}
                   >
-                    <span className="absolute top-1/2 left-3 -translate-y-1/2 text-xs text-muted-foreground">
+                    {/* Etykieta stoi tam, gdzie wykres jest przewinięty na starcie
+                        (okolice „dziś") — przy lewej krawędzi osi była poza ekranem. */}
+                    <span
+                      className="absolute top-1/2 -translate-y-1/2 text-xs whitespace-nowrap text-muted-foreground"
+                      style={{ left: Math.max(12, x(todayDay) - 108) }}
+                    >
                       Ustaw daty w edycji projektu, aby pojawił się na osi.
                     </span>
                   </div>
@@ -506,6 +525,10 @@ export function TimelineGantt({
               const left = x(pos.startDay);
               const barW = Math.max(dayCount(pos.startDay, pos.endDay) * DAY_W, DAY_W);
               const isDragging = dragId === row.id;
+              // Uchwyty mają po 8 px — na pasku krótszym niż ~3 dni zakryłyby go
+              // w całości i nie dałoby się go przesunąć. Krótki pasek tylko się
+              // przesuwa; długość zmienia się w edycji projektu.
+              const showHandles = barW >= 24;
               return (
                 <div
                   key={row.id}
@@ -513,28 +536,32 @@ export function TimelineGantt({
                   style={{ top, height: v.height }}
                 >
                   <div
-                    className="absolute top-3 flex items-center rounded-md bg-primary text-primary-foreground shadow-sm cursor-grab active:cursor-grabbing"
+                    className="absolute top-3 flex touch-none items-center rounded-md bg-primary text-primary-foreground shadow-sm cursor-grab active:cursor-grabbing"
                     style={{ left, width: barW, height: ROW_H - 24 }}
                     onPointerDown={(e) => startDrag(e, row.id, "move")}
                     title={`${row.name}: ${formatDayRange(pos.startDay, pos.endDay)}`}
                   >
-                    <span
-                      onPointerDown={(e) => startDrag(e, row.id, "left")}
-                      className="h-full w-2 shrink-0 cursor-ew-resize rounded-l-md bg-black/20"
-                      aria-label="Przesuń datę rozpoczęcia"
-                    />
+                    {showHandles && (
+                      <span
+                        onPointerDown={(e) => startDrag(e, row.id, "left")}
+                        className="h-full w-2 shrink-0 cursor-ew-resize rounded-l-md bg-black/20"
+                        aria-label="Przesuń datę rozpoczęcia"
+                      />
+                    )}
                     <span className="flex-1 overflow-hidden" />
-                    {row.hasConflict && (
+                    {row.hasConflict && showHandles && (
                       <AlertTriangle
                         className="mr-0.5 size-3.5 shrink-0 text-amber-300"
                         aria-label="Konflikt FTE: ktoś przypisany jest przeciążony"
                       />
                     )}
-                    <span
-                      onPointerDown={(e) => startDrag(e, row.id, "right")}
-                      className="h-full w-2 shrink-0 cursor-ew-resize rounded-r-md bg-black/20"
-                      aria-label="Przesuń datę zakończenia"
-                    />
+                    {showHandles && (
+                      <span
+                        onPointerDown={(e) => startDrag(e, row.id, "right")}
+                        className="h-full w-2 shrink-0 cursor-ew-resize rounded-r-md bg-black/20"
+                        aria-label="Przesuń datę zakończenia"
+                      />
+                    )}
                   </div>
 
                   {isDragging && (

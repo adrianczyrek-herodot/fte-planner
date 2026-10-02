@@ -5,15 +5,9 @@ import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import * as z from "zod";
 
-import { auth, signIn, signOut, PendingApprovalError, AccountInactiveError } from "@/auth";
+import { signIn, signOut, PendingApprovalError, AccountInactiveError } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { emailLookup } from "@/lib/validation/email";
-import {
-  can,
-  capabilitiesOf,
-  type Capability,
-  type Role,
-} from "@/lib/permissions";
 import {
   LoginFormSchema,
   LoginFormState,
@@ -93,62 +87,23 @@ export async function login(
     throw error;
   }
 
-  redirect("/app");
+  redirect(safeNextPath(formData.get("next")));
+}
+
+/**
+ * Dokąd wrócić po zalogowaniu. Przyjmujemy wyłącznie ścieżki wewnątrz aplikacji
+ * — inaczej parametr w linku do logowania pozwalałby przekierować kogoś na
+ * obcą stronę zaraz po wpisaniu hasła.
+ */
+function safeNextPath(value: FormDataEntryValue | null): string {
+  if (typeof value !== "string") return "/app";
+  if (!value.startsWith("/app") || value.startsWith("//") || value.includes("\\")) {
+    return "/app";
+  }
+  return value;
 }
 
 export async function logout() {
   await signOut({ redirect: false });
   redirect("/login");
-}
-
-export async function requireApprovedUser() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/login");
-  }
-
-  // JWT sessions carry the status from sign-in time; re-check the DB so a
-  // deactivation takes effect immediately instead of waiting for re-login.
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { status: true },
-  });
-
-  if (!dbUser || dbUser.status !== "approved") {
-    redirect(dbUser?.status === "inactive" ? "/pending" : "/login");
-  }
-
-  return session;
-}
-
-/**
- * Jedyna brama do stron i akcji: sprawdzamy UPRAWNIENIE z macierzy, nie nazwę
- * roli. Rolę czytamy świeżo z bazy (nie z tokenu JWT), żeby jej zmiana działała
- * natychmiast — tak samo jak przy statusie w requireApprovedUser.
- */
-export async function requireCapability(capability: Capability) {
-  const session = await requireApprovedUser();
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true },
-  });
-  const role = (dbUser?.role ?? "user") as Role;
-
-  if (!can(role, capability)) {
-    redirect("/app");
-  }
-
-  return { session, role };
-}
-
-// Rola pobrana świeżo z bazy — do rozgałęzień UI (np. dashboard admin vs user).
-export async function getCurrentRole() {
-  const session = await requireApprovedUser();
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true },
-  });
-  const role = (dbUser?.role ?? "user") as Role;
-  return { session, role, capabilities: capabilitiesOf(role) };
 }

@@ -1,10 +1,20 @@
 import * as z from "zod";
 
+import "@/lib/validation/locale";
+
 import { emailField } from "@/lib/validation/email";
 
 export const SignupFormSchema = z.object({
-  firstName: z.string().trim().min(1, { error: "Imię jest wymagane." }),
-  lastName: z.string().trim().min(1, { error: "Nazwisko jest wymagane." }),
+  firstName: z
+    .string()
+    .trim()
+    .min(1, { error: "Imię jest wymagane." })
+    .max(60, { error: "Imię może mieć najwyżej 60 znaków." }),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, { error: "Nazwisko jest wymagane." })
+    .max(80, { error: "Nazwisko może mieć najwyżej 80 znaków." }),
   email: emailField,
   password: z
     .string()

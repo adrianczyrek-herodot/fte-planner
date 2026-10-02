@@ -36,7 +36,7 @@ export function ZasobyFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Select defaultValue={range} onValueChange={(v) => set("range", v, "quarter")}>
+      <Select value={range} onValueChange={(v) => set("range", v, "quarter")}>
         <SelectTrigger className="w-52">
           <SelectValue placeholder="Zakres" />
         </SelectTrigger>
@@ -47,7 +47,7 @@ export function ZasobyFilters({
         </SelectContent>
       </Select>
 
-      <Select defaultValue={status} onValueChange={(v) => set("status", v, "all")}>
+      <Select value={status} onValueChange={(v) => set("status", v, "all")}>
         <SelectTrigger className="w-48">
           <SelectValue placeholder="Dostępność" />
         </SelectTrigger>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
 import Link from "next/link";
 
+import { useActionForm } from "@/lib/hooks/use-action-form";
 import { requestPasswordReset } from "@/app/actions/password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function ResetPasswordForm() {
-  const [state, action, pending] = useActionState(requestPasswordReset, undefined);
+  const [state, action, pending] = useActionForm(requestPasswordReset, undefined);
 
   if (state?.success) {
     return (
@@ -31,7 +31,7 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={action} className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label htmlFor="email">E-mail</Label>
         <Input id="email" name="email" type="email" placeholder="jan.kowalski@firma.pl" required />

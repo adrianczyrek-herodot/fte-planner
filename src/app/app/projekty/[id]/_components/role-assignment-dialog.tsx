@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 
+import { useActionForm, useFreshState } from "@/lib/hooks/use-action-form";
 import { createOrUpdateAssignment } from "@/app/actions/staffing";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,9 @@ export function RoleAssignmentDialog({
     projectRoleId,
     assignment?.id ?? null
   );
-  const [state, formAction, pending] = useActionState(action, undefined);
+  const [state, formAction, pending] = useActionForm(action, undefined);
+  // Błędy z poprzedniego otwarcia dialogu nie powinny wisieć nad nowym formularzem.
+  const shown = useFreshState(state, open);
 
   useActionEffect(state, (s) => {
     if (s?.success && open) setOpen(false);
@@ -84,7 +87,7 @@ export function RoleAssignmentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form key={String(open)} action={formAction} className="flex flex-col gap-4">
+        <form key={String(open)} onSubmit={formAction} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor={`userId-${projectRoleId}`}>Pracownik</Label>
             <Select name="userId" defaultValue={assignment?.userId}>
@@ -113,8 +116,8 @@ export function RoleAssignmentDialog({
                 ))}
               </SelectContent>
             </Select>
-            {state?.errors?.userId && (
-              <p className="text-sm text-destructive">{state.errors.userId[0]}</p>
+            {shown?.errors?.userId && (
+              <p className="text-sm text-destructive">{shown.errors.userId[0]}</p>
             )}
           </div>
 
@@ -128,8 +131,8 @@ export function RoleAssignmentDialog({
                 defaultValue={assignment?.startDate ?? defaultRange?.startDate}
                 required
               />
-              {state?.errors?.startDate && (
-                <p className="text-sm text-destructive">{state.errors.startDate[0]}</p>
+              {shown?.errors?.startDate && (
+                <p className="text-sm text-destructive">{shown.errors.startDate[0]}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -141,8 +144,8 @@ export function RoleAssignmentDialog({
                 defaultValue={assignment?.endDate ?? defaultRange?.endDate}
                 required
               />
-              {state?.errors?.endDate && (
-                <p className="text-sm text-destructive">{state.errors.endDate[0]}</p>
+              {shown?.errors?.endDate && (
+                <p className="text-sm text-destructive">{shown.errors.endDate[0]}</p>
               )}
             </div>
           </div>
@@ -160,14 +163,14 @@ export function RoleAssignmentDialog({
               placeholder="0.70"
               required
             />
-            {state?.errors?.fte && (
-              <p className="text-sm text-destructive">{state.errors.fte[0]}</p>
+            {shown?.errors?.fte && (
+              <p className="text-sm text-destructive">{shown.errors.fte[0]}</p>
             )}
           </div>
 
-          {state?.message && (
+          {shown?.message && (
             <Alert variant="destructive">
-              <AlertDescription>{state.message}</AlertDescription>
+              <AlertDescription>{shown.message}</AlertDescription>
             </Alert>
           )}
 

@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import "@/lib/validation/locale";
+
 // Adres e-mail porównujemy bez względu na wielkość liter: „Jan@firma.pl" i
 // „jan@firma.pl" to ta sama skrzynka. Nowe adresy zapisujemy małymi literami,
 // a wyszukiwanie (emailLookup) i tak jest niewrażliwe na wielkość liter —

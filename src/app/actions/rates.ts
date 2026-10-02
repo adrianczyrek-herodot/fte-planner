@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/app/actions/auth";
+import { ignoreMissing } from "@/lib/prisma-errors";
+import { requireCapability } from "@/lib/session";
 import {
   CostItemSchema,
   RateSchema,
@@ -66,8 +67,9 @@ export async function deleteRate(kind: RateKind, id: string) {
   await requireCapability("manageRates");
   if (!id) return;
 
-  if (kind === "employee") await prisma.employeeRate.delete({ where: { id } });
-  else await prisma.positionRate.delete({ where: { id } });
+  // Już usunięta (np. w drugiej karcie) — nic do zrobienia, wystarczy odświeżyć.
+  if (kind === "employee") await ignoreMissing(prisma.employeeRate.delete({ where: { id } }));
+  else await ignoreMissing(prisma.positionRate.delete({ where: { id } }));
 
   revalidateCosts();
 }
@@ -111,11 +113,10 @@ export async function deleteCostItem(formData: FormData) {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;
 
-  const item = await prisma.projectCostItem.delete({
-    where: { id },
-    select: { projectId: true },
-  });
+  const item = await ignoreMissing(
+    prisma.projectCostItem.delete({ where: { id }, select: { projectId: true } })
+  );
 
-  revalidatePath(`/app/projekty/${item.projectId}`);
-  revalidatePath("/app/projekty");
+  if (item) revalidatePath(`/app/projekty/${item.projectId}`);
+  revalidatePath("/app/projekty", "layout");
 }

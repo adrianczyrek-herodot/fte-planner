@@ -1,9 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useActionState, useState } from "react";
-import { AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, Plus } from "lucide-react";
 
+import { useActionForm } from "@/lib/hooks/use-action-form";
 import { addCostItem, deleteCostItem } from "@/app/actions/rates";
 import { formatGrosze } from "@/lib/cost";
 import { formatFte } from "@/lib/fte";
@@ -12,6 +13,7 @@ import { COST_CATEGORIES } from "@/lib/validation/rate";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { formatMonthLabel, formatYmdRange } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,7 +81,7 @@ export function ProjectCosts({
   items: CostItem[];
   summary: Summary;
 }) {
-  const [state, formAction, pending] = useActionState(
+  const [state, formAction, pending] = useActionForm(
     addCostItem.bind(null, projectId),
     undefined
   );
@@ -245,24 +247,20 @@ export function ProjectCosts({
                   <span className="font-medium tabular-nums">
                     {formatGrosze(Math.round(Number(item.amount) * 100))}
                   </span>
-                  <form action={deleteCostItem}>
-                    <input type="hidden" name="id" value={item.id} />
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Usuń pozycję: ${item.name}`}
-                    >
-                      <Trash2 className="text-destructive" />
-                    </Button>
-                  </form>
+                  <ConfirmDelete
+                    label={`Usuń pozycję: ${item.name}`}
+                    title="Usunąć koszt dodatkowy?"
+                    description={`Pozycja „${item.name}” zniknie z kosztów projektu. Tej operacji nie można cofnąć.`}
+                    action={deleteCostItem}
+                    fields={{ id: item.id }}
+                  />
                 </div>
               </li>
             ))}
           </ul>
         )}
 
-        <form key={formKey} action={formAction} className="flex flex-wrap items-end gap-2">
+        <form key={formKey} onSubmit={formAction} className="flex flex-wrap items-end gap-2">
           <div className="flex flex-1 flex-col gap-1">
             <Label htmlFor="cost-name" className="text-xs">
               Nazwa

@@ -32,7 +32,7 @@ export function SkillFilter({
   if (skills.length === 0) return null;
 
   return (
-    <Select defaultValue={initialSkill || ALL} onValueChange={handleChange}>
+    <Select value={initialSkill || ALL} onValueChange={handleChange}>
       <SelectTrigger className="w-56">
         <SelectValue placeholder="Filtruj po kompetencji" />
       </SelectTrigger>

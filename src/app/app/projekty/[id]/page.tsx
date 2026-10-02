@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
 import { ymd } from "@/lib/timeline";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import {
   assignmentCostWithRates,
@@ -73,7 +73,7 @@ export default async function ProjectDetailPage({
         include: {
           position: { select: { id: true, name: true } },
           assignments: {
-            orderBy: [{ startDate: "asc" }],
+            orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
             include: { user: { select: { firstName: true, lastName: true } } },
           },
         },
@@ -257,8 +257,8 @@ export default async function ProjectDetailPage({
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">{project.name}</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-semibold break-words">{project.name}</h1>
+          <p className="whitespace-pre-line break-words text-muted-foreground">
             {project.description || "Brak opisu."}
           </p>
         </div>

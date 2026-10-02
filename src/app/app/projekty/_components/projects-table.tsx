@@ -84,7 +84,8 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
                   <span className="flex items-center gap-1.5">
                     <Link
                       href={`/app/projekty/${project.id}`}
-                      className="hover:underline"
+                      title={project.name}
+                      className="max-w-[32ch] truncate hover:underline"
                     >
                       {project.name}
                     </Link>

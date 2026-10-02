@@ -1,13 +1,15 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { ChevronRight, Plus } from "lucide-react";
 
+import { useActionForm } from "@/lib/hooks/use-action-form";
 import { addRate, deleteRate } from "@/app/actions/rates";
 import { formatGrosze, toGrosze } from "@/lib/cost";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { todayInPoland, ymd } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,7 +151,7 @@ function RateHistory({
   currentId: string | undefined;
   today: string;
 }) {
-  const [state, formAction, pending] = useActionState(
+  const [state, formAction, pending] = useActionForm(
     addRate.bind(null, kind, owner.id),
     undefined
   );
@@ -162,7 +164,7 @@ function RateHistory({
 
   return (
     <div className="flex flex-col gap-3 border-t bg-muted/20 px-3 py-3">
-      <form key={formKey} action={formAction} className="flex flex-wrap items-end gap-2">
+      <form key={formKey} onSubmit={formAction} className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
           <Label htmlFor={`rate-${owner.id}`} className="text-xs">
             Stawka (zł/h)
@@ -234,15 +236,14 @@ function RateHistory({
                   </Badge>
                 )}
               </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
+              <ConfirmDelete
+                label={`Usuń stawkę z ${fmtDate(rate.validFrom)}`}
+                title="Usunąć stawkę?"
+                description={`Stawka ${formatGrosze(toGrosze(Number(rate.hourlyRate)))} / h obowiązująca od ${fmtDate(rate.validFrom)} zostanie usunięta, a koszty projektów przeliczą się bez niej. Tej operacji nie można cofnąć.`}
+                action={() => startRemove(async () => void (await deleteRate(kind, rate.id)))}
+                fields={{}}
                 disabled={removing}
-                onClick={() => startRemove(async () => void (await deleteRate(kind, rate.id)))}
-                aria-label={`Usuń stawkę z ${fmtDate(rate.validFrom)}`}
-              >
-                <Trash2 className="text-destructive" />
-              </Button>
+              />
             </li>
           ))}
         </ul>

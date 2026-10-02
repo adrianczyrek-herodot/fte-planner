@@ -1,8 +1,12 @@
 "use client";
 
-import { Eraser, Pencil, UserCheck, UserX } from "lucide-react";
+import { Ban, Eraser, Pencil, UserCheck, UserX } from "lucide-react";
 
-import { anonymizeEmployee, setEmployeeStatus } from "@/app/actions/employees";
+import {
+  anonymizeEmployee,
+  rejectRegistration,
+  setEmployeeStatus,
+} from "@/app/actions/employees";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -75,6 +79,7 @@ export function EmployeeRowActions({
       <EmployeeFormDialog
         mode="edit"
         employee={employee}
+        isSelf={isCurrentUser}
         positions={positions}
         skills={skills}
         trigger={
@@ -83,6 +88,39 @@ export function EmployeeRowActions({
           </Button>
         }
       />
+
+      {employee.status === "pending" && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Odrzuć rejestrację"
+              title="Odrzuć rejestrację"
+            >
+              <Ban className="text-destructive" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Odrzucić rejestrację?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Konto {employee.email} zostanie usunięte i ta osoba nie dostanie
+                dostępu. Jeśli to pomyłka, będzie mogła zarejestrować się ponownie.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Anuluj</AlertDialogCancel>
+              <form action={rejectRegistration}>
+                <input type="hidden" name="id" value={employee.id} />
+                <AlertDialogAction type="submit" variant="destructive">
+                  Odrzuć
+                </AlertDialogAction>
+              </form>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       {employee.status !== "approved" ? (
         <form action={setEmployeeStatus}>

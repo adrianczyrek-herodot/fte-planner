@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import "@/lib/validation/locale";
+
 import { dayDate, decimalInput } from "@/lib/validation/date";
 
 export const RateSchema = z.object({

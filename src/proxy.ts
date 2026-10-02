@@ -13,7 +13,11 @@ export default auth((req) => {
 
   if (isAppRoute) {
     if (!session?.user) {
-      return NextResponse.redirect(new URL("/login", req.nextUrl));
+      // Zapamiętujemy, dokąd ktoś szedł (np. link do projektu z czatu), żeby po
+      // zalogowaniu wrócić tam, a nie na panel.
+      const login = new URL("/login", req.nextUrl);
+      if (pathname !== "/app") login.searchParams.set("next", pathname + req.nextUrl.search);
+      return NextResponse.redirect(login);
     }
     if (session.user.status !== "approved") {
       return NextResponse.redirect(new URL("/pending", req.nextUrl));

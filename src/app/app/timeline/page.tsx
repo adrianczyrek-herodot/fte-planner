@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { prisma } from "@/lib/prisma";
-import { requireCapability } from "@/app/actions/auth";
+import { requireCapability } from "@/lib/session";
 import { dayIndex, timelineRange, todayInPoland } from "@/lib/timeline";
 import { InfoHint } from "@/components/info-hint";
 import { TimelineGantt } from "./_components/timeline-gantt";
@@ -14,7 +14,9 @@ export default async function TimelinePage() {
   await requireCapability("viewProjects");
 
   const projectsRaw = await prisma.project.findMany({
-    orderBy: { startDate: { sort: "asc", nulls: "last" } },
+    // Drugi i trzeci klucz dają stałą kolejność — przy samej dacie dwa projekty
+    // startujące tego samego dnia zamieniały się miejscami po każdym zapisie.
+    orderBy: [{ startDate: { sort: "asc", nulls: "last" } }, { name: "asc" }, { id: "asc" }],
     select: {
       id: true,
       name: true,
