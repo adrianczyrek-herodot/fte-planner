@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
+import { todayInPoland } from "@/lib/timeline";
 import { PROJECT_LINK_FIELDS, type ProjectLinkKey } from "@/lib/validation/project";
 import { Button } from "@/components/ui/button";
 import { ProjectFormDialog } from "./_components/project-form-dialog";
@@ -24,7 +25,8 @@ export default async function ProjectsPage({
   await requireCapability("viewProjects");
 
   const { status } = await searchParams;
-  const now = new Date();
+  // Porównujemy dni: projekt kończący się dziś jest jeszcze przed terminem.
+  const now = todayInPoland();
 
   const where =
     status === "upcoming"

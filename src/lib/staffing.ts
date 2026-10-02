@@ -14,7 +14,13 @@
 //    spokojne 0.8.
 
 import { isOverAllocated, sumFte } from "@/lib/fte";
-import { fteShareInMonth, isWorkingDay, monthsCovered } from "@/lib/period";
+import {
+  fteShareInMonth,
+  isWorkingDay,
+  monthBounds,
+  monthsCovered,
+  workingDaysBetween,
+} from "@/lib/period";
 import { dateFromDayIndex, dayIndex } from "@/lib/timeline";
 
 function ymToIndex(month: string): number {
@@ -148,12 +154,18 @@ export function peopleCoverage(
 
 export type CoverageMonth = {
   month: string;
+  /** Zapotrzebowanie jako udział w miesiącu (rola na pół miesiąca → połowa). */
   required: number;
+  /** Obsada jako udział w miesiącu, liczona tylko z dni w okresie roli. */
   assigned: number;
-  /** Ile FTE brakuje do zapotrzebowania (0, gdy pokryte lub z nadmiarem). */
+  /** Największy dzienny brak obsady w tym miesiącu (0, gdy żadnego dnia nie brakuje). */
   gap: number;
-  /** Ile FTE obsady jest nad zapotrzebowaniem (0, gdy pokryte lub z luką). */
+  /** Największy dzienny nadmiar obsady w tym miesiącu (0, gdy żadnego dnia nie ma). */
   surplus: number;
+  /** Ile dni roboczych roli w tym miesiącu ma za mało obsady. */
+  gapDays: number;
+  /** Ile dni roboczych roli w tym miesiącu ma obsadę ponad zapotrzebowanie. */
+  surplusDays: number;
 };
 
 /** Niedobór ma pierwszeństwo — to jedyny stan, który wymaga działania. */
@@ -170,6 +182,8 @@ export type RoleCoverageSummary = {
   status: CoverageStatus;
   hasGap: boolean;
   hasSurplus: boolean;
+  /** Czy okres roli zawiera choć jeden dzień roboczy (rola na sam weekend — nie). */
+  hasWorkingDays: boolean;
 };
 
 /** Zaokrąglenie do setnych — FTE to Decimal(4,2), więc dalej nie schodzimy. */
@@ -178,34 +192,77 @@ function round2(value: number): number {
 }
 
 /**
- * Pokrycie roli w każdym miesiącu jej okresu. Zapotrzebowanie i obsada są
- * liczone tą samą miarą — udziałem w miesiącu — więc rola wymagająca 1.0 FTE
- * przez pół marca potrzebuje w marcu 0.5 i tyle samo trzeba obsadzić.
+ * Pokrycie roli w każdym miesiącu jej okresu.
+ *
+ * Wartości miesięczne (`required`, `assigned`) to udziały w miesiącu — rola
+ * wymagająca 1.0 FTE przez pół marca potrzebuje w marcu 0.5. Liczymy je z sumy
+ * FTE×dni i zaokrąglamy raz, na końcu: zaokrąglanie każdego przydziału osobno
+ * potrafiło z ciągłej obsady trzema osobami zrobić „0.99 z 1".
+ *
+ * Niedobór i nadmiar oceniamy jednak DZIEŃ PO DNIU. Dwie osoby na pierwszą
+ * połowę miesiąca dają w miesiącu tyle samo FTE co jedna na cały miesiąc, ale
+ * w drugiej połowie roli nikt nie obsadza — i to musi być widać.
+ *
+ * Liczy się tylko część przydziału mieszcząca się w okresie roli: przydział
+ * wystający poza rolę nie może sztucznie podbijać jej pokrycia.
  */
 export function roleCoverage(
   role: RolePeriod,
   assignments: PeriodFte[]
 ): CoverageMonth[] {
+  const roleFrom = dayIndex(role.startDate);
+  const roleTo = dayIndex(role.endDate);
+  const required100 = Math.round(role.requiredFte * 100);
+
+  const spans = assignments
+    .map((a) => ({
+      from: Math.max(dayIndex(a.startDate), roleFrom),
+      to: Math.min(dayIndex(a.endDate), roleTo),
+      fte100: Math.round(a.fte * 100),
+    }))
+    .filter((s) => s.from <= s.to);
+
   return monthsCovered(role.startDate, role.endDate).map((month) => {
-    const required = fteShareInMonth(
-      role.requiredFte,
-      role.startDate,
-      role.endDate,
-      month
-    );
-    const assigned = round2(
-      assignments.reduce(
-        (sum, a) => sum + fteShareInMonth(a.fte, a.startDate, a.endDate, month),
-        0
-      )
-    );
+    const { first, last } = monthBounds(month);
+    const monthWorkingDays = workingDaysBetween(first, last);
+    const from = Math.max(roleFrom, dayIndex(first));
+    const to = Math.min(roleTo, dayIndex(last));
+
+    let roleDays = 0;
+    let assignedFteDays100 = 0;
+    let gapDays = 0;
+    let surplusDays = 0;
+    let maxShort100 = 0;
+    let maxOver100 = 0;
+
+    for (let d = from; d <= to; d++) {
+      if (!isWorkingDay(dateFromDayIndex(d))) continue;
+      roleDays++;
+
+      let covered100 = 0;
+      for (const s of spans) if (s.from <= d && d <= s.to) covered100 += s.fte100;
+      assignedFteDays100 += covered100;
+
+      if (covered100 < required100) {
+        gapDays++;
+        maxShort100 = Math.max(maxShort100, required100 - covered100);
+      } else if (covered100 > required100) {
+        surplusDays++;
+        maxOver100 = Math.max(maxOver100, covered100 - required100);
+      }
+    }
+
+    const share = (fteDays100: number) =>
+      monthWorkingDays === 0 ? 0 : round2(fteDays100 / 100 / monthWorkingDays);
 
     return {
       month,
-      required,
-      assigned,
-      gap: Math.max(0, round2(required - assigned)),
-      surplus: Math.max(0, round2(assigned - required)),
+      required: share(required100 * roleDays),
+      assigned: share(assignedFteDays100),
+      gap: maxShort100 / 100,
+      surplus: maxOver100 / 100,
+      gapDays,
+      surplusDays,
     };
   });
 }
@@ -214,7 +271,8 @@ export function roleCoverage(
  * Zbiorcza odpowiedź na pytanie „czy ta rola jest pokryta i na ile procent".
  * Procent liczymy z sum po wszystkich miesiącach roli, a nie ze średniej
  * miesięcznych procentów — inaczej miesiąc bez obsady ważyłby tyle samo co
- * miesiąc obsadzony podwójnie.
+ * miesiąc obsadzony podwójnie. Status wynika z oceny dziennej (patrz
+ * `roleCoverage`), więc 100% z dziurą w części okresu to nadal niedobór.
  */
 export function roleCoverageSummary(
   role: RolePeriod,
@@ -223,19 +281,21 @@ export function roleCoverageSummary(
   const months = roleCoverage(role, assignments);
   const requiredTotal = sumFte(months.map((m) => m.required));
   const assignedTotal = sumFte(months.map((m) => m.assigned));
-  const hasGap = months.some((m) => m.gap > 0);
-  const hasSurplus = months.some((m) => m.surplus > 0);
+  const hasGap = months.some((m) => m.gapDays > 0);
+  const hasSurplus = months.some((m) => m.surplusDays > 0);
+  const hasWorkingDays = months.some((m) => m.required > 0 || m.gapDays + m.surplusDays > 0);
 
   return {
     months,
     requiredTotal,
     assignedTotal,
-    // Rola bez zapotrzebowania nie powstanie (walidacja wymaga FTE > 0), ale
-    // dzielenie przez zero i tak nie może wyprodukować NaN w interfejsie.
+    // Rola bez dni roboczych (np. na sam weekend) nie ma czego pokrywać —
+    // dzielenie przez zero nie może wyprodukować NaN w interfejsie.
     percent: requiredTotal === 0 ? 0 : Math.round((assignedTotal / requiredTotal) * 100),
     status: hasGap ? "gap" : hasSurplus ? "surplus" : "exact",
     hasGap,
     hasSurplus,
+    hasWorkingDays,
   };
 }
 
@@ -292,12 +352,12 @@ export function assignmentFteInMonth(a: WorkloadRow, month: string): number {
   return fteShareInMonth(a.fte, a.startDate, a.endDate, month);
 }
 
-/** Czy rola ma w którymkolwiek miesiącu niedobór obsady. */
+/** Czy rola ma choć jeden dzień roboczy z niedoborem obsady. */
 export function roleHasGap(role: RolePeriod, assignments: PeriodFte[]): boolean {
-  return roleCoverage(role, assignments).some((c) => c.gap > 0);
+  return roleCoverage(role, assignments).some((c) => c.gapDays > 0);
 }
 
-/** Czy rola jest w którymkolwiek miesiącu obsadzona nad zapotrzebowanie. */
+/** Czy rola ma choć jeden dzień roboczy obsadzony ponad zapotrzebowanie. */
 export function roleHasSurplus(role: RolePeriod, assignments: PeriodFte[]): boolean {
-  return roleCoverage(role, assignments).some((c) => c.surplus > 0);
+  return roleCoverage(role, assignments).some((c) => c.surplusDays > 0);
 }

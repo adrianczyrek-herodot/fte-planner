@@ -7,6 +7,21 @@ export function ym(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/**
+ * Dzisiejsza data w Polsce jako UTC-północ — w tej samej konwencji co daty
+ * projektów i przydziałów. Serwer (Vercel) działa w UTC, więc samo `new Date()`
+ * między północą a 1:00/2:00 czasu polskiego wskazywałoby jeszcze wczoraj.
+ */
+export function todayInPoland(now: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Warsaw",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  return parseYmd(parts);
+}
+
 function firstOfMonth(month: string): Date {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, 1));
@@ -17,6 +32,9 @@ export function formatMonthLabel(month: string): string {
   return new Intl.DateTimeFormat("pl-PL", {
     month: "short",
     year: "numeric",
+    // Daty to UTC-północ — formatujemy je w UTC, żeby przeglądarka w innej
+    // strefie nie przesunęła ich o dzień (i nie rozjechała hydratacji).
+    timeZone: "UTC",
   }).format(firstOfMonth(month));
 }
 
@@ -50,6 +68,7 @@ export function formatDayLabel(dayIdx: number): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: "UTC",
   }).format(dateFromDayIndex(dayIdx));
 }
 
@@ -58,6 +77,7 @@ export function formatDayShort(dayIdx: number): string {
   return new Intl.DateTimeFormat("pl-PL", {
     day: "numeric",
     month: "short",
+    timeZone: "UTC",
   }).format(dateFromDayIndex(dayIdx));
 }
 
@@ -67,6 +87,7 @@ export function formatDayShort(dayIdx: number): string {
  * przełomie roku przy obu datach ("20 gru 2026 – 5 sty 2027").
  */
 export function formatDayRange(startDay: number, endDay: number): string {
+  if (startDay === endDay) return formatDayLabel(startDay);
   const start = dateFromDayIndex(startDay);
   const end = dateFromDayIndex(endDay);
   const sameYear = start.getUTCFullYear() === end.getUTCFullYear();

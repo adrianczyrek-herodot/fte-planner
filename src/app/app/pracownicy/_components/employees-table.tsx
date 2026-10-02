@@ -8,7 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { isOverAllocated } from "@/lib/fte";
+import { formatFte } from "@/lib/fte";
 import { InfoHint } from "@/components/info-hint";
 import { EmployeeRowActions } from "./employee-row-actions";
 
@@ -26,6 +26,8 @@ type Employee = {
   status: "approved" | "inactive" | "pending";
   anonymizedAt: Date | null;
   monthlyFte: number;
+  /** Czy w bieżącym miesiącu jest dzień roboczy z sumą FTE powyżej 1,00. */
+  isOverloaded: boolean;
 };
 
 const roleLabel = {
@@ -34,11 +36,6 @@ const roleLabel = {
   admin: "Administrator",
   user: "",
 } as const;
-
-// Kompaktowy zapis FTE: 0.8, 1.4, 1 (bez zbędnych zer).
-function formatFte(value: number) {
-  return String(Number(value.toFixed(2)));
-}
 
 const statusMeta = {
   approved: { label: "Aktywny", variant: "secondary" },
@@ -89,10 +86,12 @@ export function EmployeesTable({
               <span className="flex items-center gap-1.5">
                 Obciążenie
                 <InfoHint label="Jak liczymy: Obciążenie">
-                  Suma FTE ze wszystkich przydziałów tej osoby nachodzących na
-                  bieżący miesiąc. 1.00 to pełny etat — powyżej tej wartości
-                  liczba robi się czerwona. Kolumna nie zależy od filtrów
-                  wyszukiwania.
+                  Ile etatu zajmują przydziały tej osoby w bieżącym miesiącu:
+                  przydział na pół miesiąca liczy się za połowę. 1,00 to pełny
+                  etat. Czerwień oznacza przeciążenie — dzień roboczy, w którym
+                  suma przydziałów przekracza 1,00 — nawet jeśli udział w
+                  miesiącu jest niższy. Ta sama miara jest w Zasobach i na
+                  karcie pracownika.
                 </InfoHint>
               </span>
             </TableHead>
@@ -139,7 +138,7 @@ export function EmployeesTable({
               <TableCell>
                 <Badge
                   variant={
-                    isOverAllocated(employee.monthlyFte) ? "destructive" : "secondary"
+                    employee.isOverloaded ? "destructive" : "secondary"
                   }
                 >
                   {formatFte(employee.monthlyFte)}

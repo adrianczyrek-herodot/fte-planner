@@ -1,5 +1,6 @@
+import { formatFte } from "@/lib/fte";
 import { assignmentFteInMonth, type WorkloadMonth } from "@/lib/staffing";
-import { formatMonthLabel } from "@/lib/timeline";
+import { formatMonthLabel, formatYmdRange, ymd } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 
 type Assignment = {
@@ -13,12 +14,13 @@ type Assignment = {
   projectName: string;
 };
 
-const fmt = (v: number) => String(Number(v.toFixed(2)));
+const fmt = formatFte;
 
 /**
- * Oś czasu jednej osoby: wiersz na przydział, kolumna na miesiąc. Granulacja
- * jest miesięczna, bo tak są zapisywane przydziały. Ostatni wiersz podsumowuje
- * obłożenie i wyraźnie oznacza miesiące, w których osoba jest przeciążona.
+ * Oś czasu jednej osoby: wiersz na przydział, kolumna na miesiąc. Przydziały
+ * są dzienne, a komórka pokazuje udział przydziału w miesiącu. Ostatni wiersz
+ * podsumowuje obłożenie i wyraźnie oznacza miesiące, w których osoba jest
+ * przeciążona (szczyt dzienny powyżej 1,00).
  */
 export function EmployeeTimeline({
   months,
@@ -64,7 +66,9 @@ export function EmployeeTimeline({
             <tr key={a.id}>
               <td className="sticky left-0 z-10 border-b border-r bg-card p-3 align-top">
                 <div className="truncate font-medium">{a.projectName}</div>
-                <div className="text-xs text-muted-foreground">{a.rolePosition}</div>
+                <div className="text-xs text-muted-foreground">
+                  {a.rolePosition} · {formatYmdRange(ymd(a.startDate), ymd(a.endDate))}
+                </div>
               </td>
               {months.map((m) => {
                 const fte = assignmentFteInMonth(a, m);
@@ -102,7 +106,7 @@ export function EmployeeTimeline({
                 key={w.month}
                 title={
                   w.isOverloaded
-                    ? `${formatMonthLabel(w.month)}: przeciążenie o ${fmt(w.total - 1)} FTE`
+                    ? `${formatMonthLabel(w.month)}: udział ${fmt(w.total)} FTE, ale w najgorszym dniu ${fmt(w.peak)} FTE — przeciążenie o ${fmt(w.peak - 1)} FTE`
                     : `${formatMonthLabel(w.month)}: ${fmt(w.total)} FTE`
                 }
                 className={cn(

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
+import { pluralize } from "@/lib/plural";
 import { requireCapability } from "@/app/actions/auth";
 import {
   DictionaryEntrySchema,
@@ -113,8 +114,8 @@ export async function deleteDictionaryEntry(
     ]);
     if (users > 0 || roles > 0) {
       const parts = [
-        users > 0 ? `${users} ${users === 1 ? "pracownik" : "pracowników"}` : null,
-        roles > 0 ? `${roles} ${roles === 1 ? "rola" : "roli"} w projektach` : null,
+        users > 0 ? pluralize(users, "pracownik", "pracowników", "pracowników") : null,
+        roles > 0 ? `${pluralize(roles, "rola", "role", "ról")} w projektach` : null,
       ].filter(Boolean);
       return { ok: false, message: `${labels.position.used} Używa go: ${parts.join(", ")}.` };
     }
@@ -124,7 +125,7 @@ export async function deleteDictionaryEntry(
     if (users > 0) {
       return {
         ok: false,
-        message: `${labels.skill.used} Ma ją ${users} ${users === 1 ? "osoba" : "osób"}.`,
+        message: `${labels.skill.used} Ma ją ${pluralize(users, "osoba", "osoby", "osób")}.`,
       };
     }
     await prisma.skill.delete({ where: { id } });

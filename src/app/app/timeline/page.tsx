@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
-import { dayIndex, timelineRange } from "@/lib/timeline";
+import { dayIndex, timelineRange, todayInPoland } from "@/lib/timeline";
 import { InfoHint } from "@/components/info-hint";
 import { TimelineGantt } from "./_components/timeline-gantt";
 
@@ -73,7 +73,7 @@ export default async function TimelinePage() {
     .filter((p) => !p.startDate || !p.endDate)
     .map((p) => ({ id: p.id, name: p.name }));
 
-  const todayDay = dayIndex(new Date());
+  const todayDay = dayIndex(todayInPoland());
   const { rangeStartDay, totalDays } = timelineRange(
     rows.flatMap((r) => [r.startDay, r.endDay]),
     todayDay

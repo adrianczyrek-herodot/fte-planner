@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
 import { DictionaryManager } from "./_components/dictionary-manager";
 import { RateManager } from "./_components/rate-manager";
+import { pluralize } from "@/lib/plural";
 
 export const metadata: Metadata = {
   title: "Ustawienia — FTE Planner",
@@ -83,10 +84,10 @@ export default async function SettingsPage() {
           name: p.name,
           usage: [
             p._count.users > 0
-              ? `${p._count.users} ${p._count.users === 1 ? "pracownik" : "pracowników"}`
+              ? pluralize(p._count.users, "pracownik", "pracowników", "pracowników")
               : null,
             p._count.projectRoles > 0
-              ? `${p._count.projectRoles} ${p._count.projectRoles === 1 ? "rola" : "roli"}`
+              ? pluralize(p._count.projectRoles, "rola", "role", "ról")
               : null,
           ]
             .filter(Boolean)
@@ -98,7 +99,7 @@ export default async function SettingsPage() {
       <RateManager
         kind="position"
         title="Stawki stanowisk"
-        description="Stawka godzinowa używana, gdy pracownik nie ma własnej. Nowa stawka nie nadpisuje poprzedniej — obowiązuje od podanej daty."
+        description="Stawka godzinowa używana, gdy pracownik nie ma własnej. Nowa stawka nie nadpisuje poprzedniej — w kosztach liczy się od dnia podanego w „Obowiązuje od” (także w połowie miesiąca), a wcześniejsze dni zostają po starej stawce."
         owners={positionRates.map((p) => ({
           id: p.id,
           label: p.name,
@@ -109,7 +110,7 @@ export default async function SettingsPage() {
       <RateManager
         kind="employee"
         title="Stawki pracowników"
-        description="Stawka własna pracownika ma pierwszeństwo nad stawką jego stanowiska."
+        description="Stawka własna pracownika ma pierwszeństwo nad stawką stanowiska — od dnia, od którego obowiązuje. Przed tą datą koszt liczy się stawką stanowiska, na które pracownik jest obsadzony w danej roli projektu."
         owners={employees.map((e) => ({
           id: e.id,
           label: `${e.firstName} ${e.lastName}`,
@@ -128,7 +129,7 @@ export default async function SettingsPage() {
           name: s.name,
           usage:
             s._count.users > 0
-              ? `${s._count.users} ${s._count.users === 1 ? "osoba" : "osób"}`
+              ? pluralize(s._count.users, "osoba", "osoby", "osób")
               : "",
           inUse: s._count.users > 0,
         }))}

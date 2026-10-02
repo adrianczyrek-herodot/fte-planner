@@ -1,21 +1,21 @@
 import * as z from "zod";
 
-// Empty/blank input → null; anything else must parse as a valid date.
-// Parsing here (instead of re-reading the raw FormData in the action) means a
-// malformed date surfaces as a field error rather than crashing Prisma.
-const optionalDate = z.preprocess(
-  (value) =>
-    typeof value === "string" && value.trim() !== "" ? value.trim() : null,
-  z.coerce.date({ error: "Nieprawidłowa data." }).nullable()
-);
+import { decimalInput, optionalDayDate } from "@/lib/validation/date";
 
-// Puste → null; inaczej nieujemna liczba.
+// Puste → null; inaczej dzień (UTC-północ) z rozsądnego zakresu lat. Parsowanie
+// tutaj (a nie w akcji) sprawia, że zła data jest błędem pola, a nie wyjątkiem.
+const optionalDate = optionalDayDate;
+
+// Puste → null; inaczej nieujemna kwota mieszcząca się w kolumnie Decimal(12,2).
 const optionalBudget = z.preprocess(
-  (value) =>
-    typeof value === "string" && value.trim() !== "" ? value.trim() : null,
+  (value) => {
+    const v = decimalInput(value);
+    return typeof v === "string" && v !== "" ? v : null;
+  },
   z.coerce
     .number({ error: "Budżet musi być liczbą." })
     .min(0, { error: "Budżet nie może być ujemny." })
+    .max(9_999_999_999.99, { error: "Budżet jest zbyt duży." })
     .nullable()
 );
 

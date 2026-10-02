@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 
 import { prisma } from "@/lib/prisma";
-import { parseYmd } from "@/lib/timeline";
+import { formatYmdRange, parseYmd, ymd } from "@/lib/timeline";
 import { requireCapability } from "@/app/actions/auth";
 import { recomputeUserConflicts } from "@/lib/assignments-core";
 import {
@@ -141,13 +141,29 @@ export async function createOrUpdateAssignment(
 
   const role = await prisma.projectRole.findUnique({
     where: { id: projectRoleId },
-    select: { projectId: true },
+    select: { projectId: true, startDate: true, endDate: true },
   });
   if (!role) return { message: "Rola już nie istnieje." };
 
   const { userId } = v.data;
   const startDate = parseYmd(v.data.startDate);
   const endDate = parseYmd(v.data.endDate);
+
+  // Przydział poza okresem roli nie ma czego obsadzać, a w pokryciu i tak by
+  // się nie liczył — zatrzymujemy go od razu, z podaniem okresu roli.
+  if (startDate < role.startDate || endDate > role.endDate) {
+    const period = formatYmdRange(ymd(role.startDate), ymd(role.endDate));
+    return {
+      errors: {
+        ...(startDate < role.startDate
+          ? { startDate: [`Przydział musi mieścić się w okresie roli (${period}).`] }
+          : {}),
+        ...(endDate > role.endDate
+          ? { endDate: [`Przydział musi mieścić się w okresie roli (${period}).`] }
+          : {}),
+      },
+    };
+  }
   const fte = round2(v.data.fte);
   const affected = new Set<string>([userId]);
 

@@ -10,6 +10,8 @@ import { Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
 
 import { deleteAssignment, deleteProjectRole } from "@/app/actions/staffing";
 import { formatMonthLabel, formatYmdRange } from "@/lib/timeline";
+import { formatFte } from "@/lib/fte";
+import { pluralize } from "@/lib/plural";
 import { cn } from "@/lib/utils";
 import { InfoHint } from "@/components/info-hint";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +35,8 @@ type Coverage = {
   assigned: number;
   gap: number;
   surplus: number;
+  gapDays: number;
+  surplusDays: number;
 };
 
 type Role = {
@@ -47,6 +51,10 @@ type Role = {
   coverage: Coverage[];
   /** Pokrycie całego okresu roli w procentach. */
   percent: number;
+  /** Rola na sam weekend/święta nie ma dni do obsadzenia. */
+  hasWorkingDays: boolean;
+  /** Ile przydziałów wystaje poza okres roli. */
+  outsideCount: number;
   status: "gap" | "exact" | "surplus";
   /** Oba mogą być prawdą naraz: dziura w jednym miesiącu, nadmiar w innym. */
   hasGap: boolean;
@@ -77,7 +85,7 @@ type Employee = {
   skills: string[];
 };
 
-const fmt = (v: number | string) => String(Number(Number(v).toFixed(2)));
+const fmt = formatFte;
 
 export function StaffingSection({
   projectId,
@@ -121,13 +129,17 @@ export function StaffingSection({
                   <span className="text-sm text-muted-foreground">
                     {formatYmdRange(role.startDate, role.endDate)} · {fmt(role.requiredFte)} FTE
                   </span>
-                  <Badge
-                    variant={statusMeta[role.status].variant}
-                    title={`Pokrycie całego okresu roli: ${role.percent}%`}
-                  >
-                    {statusMeta[role.status].label}
-                    <span className="tabular-nums"> · {role.percent}%</span>
-                  </Badge>
+                  {role.hasWorkingDays ? (
+                    <Badge
+                      variant={statusMeta[role.status].variant}
+                      title={`Pokrycie całego okresu roli: ${role.percent}%`}
+                    >
+                      {statusMeta[role.status].label}
+                      <span className="tabular-nums"> · {role.percent}%</span>
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">Brak dni roboczych w okresie</Badge>
+                  )}
                   {role.people.status !== "unset" && (
                     <Badge
                       variant={peopleMeta[role.people.status].variant}
@@ -140,14 +152,15 @@ export function StaffingSection({
                     </Badge>
                   )}
                   <InfoHint label="Jak liczymy pokrycie roli">
-                    Procent to suma obsadzonego FTE podzielona przez sumę
-                    zapotrzebowania, po wszystkich miesiącach roli łącznie.
-                    Etykieta patrzy jednak na pojedyncze miesiące: „Niedobór”
-                    pojawia się, gdy brakuje obsady w którymkolwiek z nich.
-                    Dlatego rola może mieć 100% i nadal być oznaczona jako
-                    niedobór — jeden miesiąc obsadzony z nadmiarem nie zasypuje
-                    luki w innym. Licznik osób to unikalni ludzie w całym okresie
-                    roli, a nie obsada konkretnego miesiąca.
+                    Procent to obsadzone FTE podzielone przez zapotrzebowanie,
+                    łącznie dla całego okresu roli. Etykieta patrzy jednak na
+                    pojedyncze dni robocze: „Niedobór” pojawia się, gdy w
+                    którymkolwiek dniu obsada jest mniejsza niż wymagane FTE, a
+                    „Nadmiar”, gdy większa. Dlatego rola może mieć 100% i nadal
+                    być oznaczona jako niedobór — dwie osoby w pierwszej połowie
+                    miesiąca nie zastąpią nikogo w drugiej. Liczy się tylko ta
+                    część przydziału, która mieści się w okresie roli. Licznik
+                    osób to unikalni ludzie w całym okresie roli.
                   </InfoHint>
                   {role.people.status === "unset" && role.people.assigned > 0 && (
                     <Badge variant="outline" title="Nie zadeklarowano liczby osób">
@@ -157,7 +170,13 @@ export function StaffingSection({
                   )}
                   {role.hasGap && role.hasSurplus && (
                     <span className="text-xs text-muted-foreground">
-                      niedobór i nadmiar w różnych miesiącach
+                      niedobór i nadmiar w różnych dniach
+                    </span>
+                  )}
+                  {role.outsideCount > 0 && (
+                    <span className="text-xs text-amber-700 dark:text-amber-400">
+                      {pluralize(role.outsideCount, "przydział wykracza", "przydziały wykraczają", "przydziałów wykracza")}{" "}
+                      poza okres roli — liczymy tylko część w okresie roli
                     </span>
                   )}
                 </div>
@@ -198,17 +217,21 @@ export function StaffingSection({
                   <div
                     key={c.month}
                     title={[
-                      `${formatMonthLabel(c.month)}: obsada ${fmt(c.assigned)} / wymagane ${fmt(c.required)}`,
-                      c.gap > 0 ? `brakuje ${fmt(c.gap)} FTE` : null,
-                      c.surplus > 0 ? `nadmiar ${fmt(c.surplus)} FTE` : null,
+                      `${formatMonthLabel(c.month)}: obsada ${fmt(c.assigned)} / wymagane ${fmt(c.required)} (udział w miesiącu)`,
+                      c.gapDays > 0
+                        ? `brakuje do ${fmt(c.gap)} FTE przez ${pluralize(c.gapDays, "dzień roboczy", "dni robocze", "dni roboczych")}`
+                        : null,
+                      c.surplusDays > 0
+                        ? `nadmiar do ${fmt(c.surplus)} FTE przez ${pluralize(c.surplusDays, "dzień roboczy", "dni robocze", "dni roboczych")}`
+                        : null,
                     ]
                       .filter(Boolean)
                       .join(" — ")}
                     className={cn(
                       "flex min-w-16 shrink-0 flex-col items-center rounded-md px-2 py-1 text-xs",
-                      c.gap > 0
+                      c.gapDays > 0
                         ? "bg-destructive/10 text-destructive"
-                        : c.surplus > 0
+                        : c.surplusDays > 0
                           ? "bg-amber-500/15 text-amber-700 dark:bg-amber-400/15 dark:text-amber-400"
                           : "bg-primary/10 text-primary"
                     )}

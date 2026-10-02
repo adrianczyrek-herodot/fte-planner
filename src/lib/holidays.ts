@@ -70,7 +70,18 @@ function addDays(date: Date, days: number): Date {
  * odpowiedzią na pytanie „czy to dzień ustawowo wolny”, a nie tylko wejściem
  * do jednego wyliczenia.
  */
+// Kalendarz roku liczymy raz: `isHoliday` jest wołane dla każdego dnia przy
+// liczeniu konfliktów, pokrycia i kosztów, a lista świąt danego roku się nie
+// zmienia. Zwracamy kopię, żeby wywołujący nie mógł zepsuć pamięci podręcznej.
+const cache = new Map<number, ReadonlySet<string>>();
+
 export function holidaysInYear(year: number): Set<string> {
+  return new Set(holidaySet(year));
+}
+
+function holidaySet(year: number): ReadonlySet<string> {
+  const cached = cache.get(year);
+  if (cached) return cached;
   const out = new Set<string>();
 
   for (const [month, day] of STALE) {
@@ -87,12 +98,13 @@ export function holidaysInYear(year: number): Set<string> {
   out.add(iso(addDays(easter, 49))); // Zielone Świątki (niedziela)
   out.add(iso(addDays(easter, 60))); // Boże Ciało (czwartek)
 
+  cache.set(year, out);
   return out;
 }
 
 /** Czy podana data (UTC) jest dniem ustawowo wolnym od pracy. */
 export function isHoliday(date: Date): boolean {
-  return holidaysInYear(date.getUTCFullYear()).has(iso(date));
+  return holidaySet(date.getUTCFullYear()).has(iso(date));
 }
 
 /**
@@ -104,7 +116,7 @@ export function workingDayHolidaysInMonth(month: string): string[] {
   const year = Number(month.slice(0, 4));
   const prefix = `${month}-`;
 
-  return [...holidaysInYear(year)]
+  return [...holidaySet(year)]
     .filter((d) => d.startsWith(prefix))
     .filter((d) => {
       const weekday = new Date(`${d}T00:00:00Z`).getUTCDay();

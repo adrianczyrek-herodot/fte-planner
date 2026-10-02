@@ -54,7 +54,7 @@ export function ZasobyFilters({
         <SelectContent>
           <SelectItem value="all">Wszyscy</SelectItem>
           <SelectItem value="available">Dostępni (&lt; 1 FTE)</SelectItem>
-          <SelectItem value="over">Przeciążeni (&gt; 1 FTE)</SelectItem>
+          <SelectItem value="over">Przeciążeni</SelectItem>
         </SelectContent>
       </Select>
 
@@ -63,9 +63,9 @@ export function ZasobyFilters({
         bieżącego kwartału (może już częściowo minąć), a pół roku to sześć
         miesięcy licząc od bieżącego. Filtr dostępności patrzy na
         <strong> którykolwiek</strong> miesiąc zakresu, nie na cały: „Dostępni”
-        to osoby mające choć jeden miesiąc poniżej pełnego etatu, a
-        „Przeciążeni” — choć jeden powyżej. Ta sama osoba może więc spełniać
-        oba warunki naraz.
+        to osoby mające choć jeden miesiąc z udziałem poniżej pełnego etatu, a
+        „Przeciążeni” — choć jeden dzień roboczy, w którym suma przydziałów
+        przekracza 1,00. Ta sama osoba może więc spełniać oba warunki naraz.
       </InfoHint>
 
       {skills.length > 0 && (

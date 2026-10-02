@@ -6,6 +6,8 @@ import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 
 import { addCostItem, deleteCostItem } from "@/app/actions/rates";
 import { formatGrosze } from "@/lib/cost";
+import { formatFte } from "@/lib/fte";
+import { polishPlural } from "@/lib/plural";
 import { COST_CATEGORIES } from "@/lib/validation/rate";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
 import { formatMonthLabel, formatYmdRange } from "@/lib/timeline";
@@ -55,6 +57,13 @@ type Summary = {
   monthsWithoutRate: number;
 };
 
+/** „1 miesiąc przydziału nie ma stawki", „2 miesiące… nie mają", „5 miesięcy… nie ma". */
+function monthsWithoutRateText(n: number): string {
+  const form = polishPlural(n, "miesiąc", "miesiące", "miesięcy");
+  const verb = form === "miesiące" ? "nie mają" : "nie ma";
+  return `${n} ${form} przydziałów ${verb} pełnej stawki`;
+}
+
 const categoryLabel = Object.fromEntries(
   COST_CATEGORIES.map((c) => [c.value, c.label])
 ) as Record<string, string>;
@@ -87,10 +96,9 @@ export function ProjectCosts({
         <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <span>
-            {summary.monthsWithoutRate}{" "}
-            {summary.monthsWithoutRate === 1 ? "miesiąc przydziału nie ma" : "miesięcy przydziałów nie ma"}{" "}
-            stawki — koszt jest niedoszacowany, a marża wygląda lepiej, niż jest.
-            Uzupełnij stawki w Ustawieniach.
+            {monthsWithoutRateText(summary.monthsWithoutRate)} — koszt jest
+            niedoszacowany, a marża wygląda lepiej, niż jest. Uzupełnij stawki w
+            Ustawieniach.
           </span>
         </p>
       )}
@@ -102,12 +110,13 @@ export function ProjectCosts({
           value={formatGrosze(summary.laborGrosze)}
           explain={
             <>
-              Koszt osób z tabeli poniżej. Dla każdego miesiąca przydziału:
-              godziny × stawka godzinowa, gdzie godziny = FTE × dni robocze ×
-              8 h. Dni robocze to poniedziałki–piątki pomniejszone o dni
-              ustawowo wolne od pracy. Nie uwzględniamy natomiast urlopów ani
-              zwolnień. Stawka to własna stawka pracownika, a gdy jej nie ma —
-              stawka jego stanowiska; obowiązuje ta z pierwszego dnia miesiąca.
+              Koszt osób z tabeli poniżej. Dla każdego dnia roboczego, który
+              przydział obejmuje: FTE × 8 h × stawka godzinowa z tego dnia. Dni
+              robocze to poniedziałki–piątki bez dni ustawowo wolnych; święto w
+              sobotę nie zmniejsza liczby godzin (rozliczenie B2B). Urlopów ani
+              zwolnień nie uwzględniamy. Stawka to własna stawka pracownika, a
+              gdy jej nie ma — stawka stanowiska, na które jest obsadzony w tej
+              roli. Zmiana stawki działa od dnia wpisanego w „Obowiązuje od”.
             </>
           }
         />
@@ -154,7 +163,7 @@ export function ProjectCosts({
                 <span className="flex items-center justify-end gap-1.5">
                   FTE
                   <InfoHint label="Jak liczymy: FTE">
-                    Zaangażowanie z przydziału tej osoby na tej roli. 1.00 to
+                    Zaangażowanie z przydziału tej osoby na tej roli. 1,00 to
                     pełny etat przez cały okres przydziału.
                   </InfoHint>
                 </span>
@@ -163,12 +172,11 @@ export function ProjectCosts({
                 <span className="flex items-center justify-end gap-1.5">
                   Godziny
                   <InfoHint label="Jak liczymy: Godziny">
-                    Suma po miesiącach przydziału: FTE × liczba dni roboczych
-                    w danym miesiącu × 8 h. Dni robocze to poniedziałki–piątki
-                    minus dni ustawowo wolne, także te ruchome, jak Poniedziałek
-                    Wielkanocny czy Boże Ciało. Dlatego ta sama wartość FTE daje
-                    inną liczbę godzin w styczniu i w lipcu. Urlopy i zwolnienia
-                    nie są tu uwzględniane.
+                    FTE × liczba dni roboczych, które przydział obejmuje, × 8 h.
+                    Dni robocze to poniedziałki–piątki minus dni ustawowo wolne,
+                    także ruchome, jak Poniedziałek Wielkanocny czy Boże Ciało.
+                    Święto w sobotę nic nie odejmuje (rozliczenie B2B). Urlopy i
+                    zwolnienia nie są tu uwzględniane.
                   </InfoHint>
                 </span>
               </th>
@@ -205,8 +213,10 @@ export function ProjectCosts({
                   <td className="p-2.5 whitespace-nowrap text-muted-foreground">
                     {formatYmdRange(p.startDate, p.endDate)}
                   </td>
-                  <td className="p-2.5 text-right tabular-nums">{p.fte.toFixed(2)}</td>
-                  <td className="p-2.5 text-right tabular-nums">{p.hours}</td>
+                  <td className="p-2.5 text-right tabular-nums">{formatFte(p.fte)}</td>
+                  <td className="p-2.5 text-right tabular-nums">
+                    {p.hours.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}
+                  </td>
                   <td className="p-2.5 text-right font-medium tabular-nums">
                     {formatGrosze(p.grosze)}
                   </td>

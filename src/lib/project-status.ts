@@ -1,3 +1,5 @@
+import { todayInPoland } from "@/lib/timeline";
+
 export type ProjectDueStatus = "no-due-date" | "upcoming" | "overdue";
 
 // Etykieta + wariant badge dla statusu terminu — jedno źródło prawdy dla listy
@@ -12,24 +14,31 @@ export const projectStatusMeta: Record<
 };
 
 // Status liczony z daty zakończenia projektu: przyszła/dzisiejsza → "przed
-// terminem", przeszła → "po terminie".
-export function getProjectDueStatus(endDate: Date | null): ProjectDueStatus {
+// terminem", przeszła → "po terminie". Porównujemy DNI (data końca to
+// UTC-północ), więc projekt kończący się dziś jest przed terminem do końca dnia.
+export function getProjectDueStatus(
+  endDate: Date | null,
+  today: Date = todayInPoland()
+): ProjectDueStatus {
   if (!endDate) return "no-due-date";
-  return endDate.getTime() >= Date.now() ? "upcoming" : "overdue";
+  return endDate.getTime() >= today.getTime() ? "upcoming" : "overdue";
 }
 
 export function formatDate(date: Date | null): string {
   if (!date) return "—";
-  return new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium" }).format(date);
+  return new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeZone: "UTC" }).format(
+    date
+  );
 }
 
-// Budżet w PLN, bez groszy — wspólny format dla listy i szczegółów projektu.
+// Budżet w PLN z groszami — wspólny format dla listy i szczegółów projektu.
 export function formatBudget(budget: number | null): string {
   if (budget == null) return "—";
   return new Intl.NumberFormat("pl-PL", {
     style: "currency",
     currency: "PLN",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
     useGrouping: "always",
   }).format(Number(budget));
 }

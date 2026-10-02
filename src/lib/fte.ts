@@ -37,3 +37,11 @@ export function computeConflictFlags(
   const conflict = isOverAllocated(total);
   return new Map(assignments.map((a) => [a.id, conflict]));
 }
+
+/** FTE do wyświetlenia: zawsze dwa miejsca po przecinku, polski zapis („0,50"). */
+export function formatFte(fte: number | string): string {
+  return Number(fte).toLocaleString("pl-PL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}

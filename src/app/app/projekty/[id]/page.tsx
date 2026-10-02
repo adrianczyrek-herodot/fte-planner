@@ -145,6 +145,12 @@ export default async function ProjectDetailPage({
       people: peopleCoverage(r.requiredPeople, r.assignments),
       coverage: summary.months,
       percent: summary.percent,
+      hasWorkingDays: summary.hasWorkingDays,
+      // Przydziały wystające poza okres roli — liczymy z nich tylko część w
+      // okresie roli, więc warto o nich wiedzieć (np. po skróceniu roli).
+      outsideCount: r.assignments.filter(
+        (a) => a.startDate < r.startDate || a.endDate > r.endDate
+      ).length,
       status: summary.status,
       hasGap: summary.hasGap,
       hasSurplus: summary.hasSurplus,
@@ -220,9 +226,10 @@ export default async function ProjectDetailPage({
         fte: a.fte,
         hours: Math.round(months.reduce((sum, m) => sum + m.hours, 0) * 100) / 100,
         grosze: months.reduce((sum, m) => sum + m.grosze, 0),
-        monthsWithoutRate: months.filter((m) => m.rateSource === null).map((m) => m.month),
+        monthsWithoutRate: months.filter((m) => m.missingRate).map((m) => m.month),
         // Źródło stawki pokazujemy, gdy jest jednolite dla całego przydziału.
-        rateSource: months.every((m) => m.rateSource === "employee")
+        rateSource: months.every((m) => m.rateSource !== "position" && !m.missingRate) &&
+          months.some((m) => m.rateSource === "employee")
           ? ("employee" as const)
           : months.some((m) => m.rateSource === "position")
             ? ("position" as const)

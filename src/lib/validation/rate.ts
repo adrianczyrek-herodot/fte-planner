@@ -1,12 +1,17 @@
 import * as z from "zod";
 
+import { dayDate, decimalInput } from "@/lib/validation/date";
+
 export const RateSchema = z.object({
-  hourlyRate: z.coerce
-    .number({ error: "Stawka musi być liczbą." })
-    .gt(0, { error: "Stawka musi być większa od 0." })
-    .max(100000, { error: "Stawka jest nierealnie wysoka." }),
+  hourlyRate: z.preprocess(
+    decimalInput,
+    z.coerce
+      .number({ error: "Stawka musi być liczbą." })
+      .gt(0, { error: "Stawka musi być większa od 0." })
+      .max(100000, { error: "Stawka jest nierealnie wysoka." })
+  ),
   // Data obowiązywania — dzień, od którego stawka liczy się w kosztach.
-  validFrom: z.coerce.date({ error: "Podaj poprawną datę obowiązywania." }),
+  validFrom: dayDate,
 });
 
 export type RateFormState =
@@ -31,10 +36,13 @@ export const CostItemSchema = z.object({
     .min(2, { error: "Nazwa musi mieć co najmniej 2 znaki." })
     .max(120, { error: "Nazwa jest zbyt długa." }),
   category: z.enum(["tools", "hardware", "software", "other"]).default("other"),
-  amount: z.coerce
-    .number({ error: "Kwota musi być liczbą." })
-    .gt(0, { error: "Kwota musi być większa od 0." })
-    .max(100000000, { error: "Kwota jest nierealnie wysoka." }),
+  amount: z.preprocess(
+    decimalInput,
+    z.coerce
+      .number({ error: "Kwota musi być liczbą." })
+      .gt(0, { error: "Kwota musi być większa od 0." })
+      .max(100000000, { error: "Kwota jest nierealnie wysoka." })
+  ),
 });
 
 export type CostItemFormState =

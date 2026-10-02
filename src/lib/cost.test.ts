@@ -6,7 +6,7 @@ import {
   assignmentCostByMonth,
   assignmentCostWithRates,
   projectCostSummary,
-  rateForMonth,
+  rateOnDay,
   assignmentCostGrosze,
   effectiveHourlyRate,
   formatGrosze,
@@ -101,11 +101,16 @@ describe("toGrosze / formatGrosze", () => {
 
   it("formatuje grosze jako kwotę w złotych", () => {
     // 1 500 000 groszy = 15 000 zł. Intl wstawia twardą spację jako separator.
-    expect(formatGrosze(1500000).replace(/\u00a0/g, " ")).toBe("15 000 zł");
+    expect(formatGrosze(1500000).replace(/\u00a0/g, " ")).toBe("15 000,00 zł");
     // Grupowanie wymuszone także dla czterech cyfr — inaczej kolumna kwot
     // mieszałaby "4800 zł" z "84 840 zł".
-    expect(formatGrosze(480000).replace(/\u00a0/g, " ")).toBe("4 800 zł");
-    expect(formatGrosze(150000000).replace(/\u00a0/g, " ")).toBe("1 500 000 zł");
+    expect(formatGrosze(480000).replace(/\u00a0/g, " ")).toBe("4 800,00 zł");
+    expect(formatGrosze(150000000).replace(/\u00a0/g, " ")).toBe("1 500 000,00 zł");
+  });
+
+  it("pokazuje grosze, zamiast zaokrąglać do złotówek", () => {
+    expect(formatGrosze(8550).replace(/\u00a0/g, " ")).toBe("85,50 zł");
+    expect(formatGrosze(40).replace(/\u00a0/g, " ")).toBe("0,40 zł");
   });
 });
 
@@ -179,31 +184,28 @@ describe("effectiveHourlyRate", () => {
 
 const dzien = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
-describe("rateForMonth", () => {
+describe("rateOnDay", () => {
   const stawki = [
     { grosze: 15000, validFrom: dzien("2026-01-01") }, // 150 zł
-    { grosze: 18000, validFrom: dzien("2026-07-01") }, // 180 zł od lipca
+    { grosze: 18000, validFrom: dzien("2026-07-15") }, // 180 zł od 15 lipca
   ];
 
-  it("bierze stawkę obowiązującą na początek miesiąca", () => {
-    expect(rateForMonth(stawki, "2026-06")?.grosze).toBe(15000);
-    expect(rateForMonth(stawki, "2026-07")?.grosze).toBe(18000);
-    expect(rateForMonth(stawki, "2026-12")?.grosze).toBe(18000);
+  it("bierze stawkę obowiązującą w danym dniu", () => {
+    expect(rateOnDay(stawki, dzien("2026-07-14"))?.grosze).toBe(15000);
+    expect(rateOnDay(stawki, dzien("2026-12-01"))?.grosze).toBe(18000);
   });
 
-  it("miesiąc przed pierwszą stawką nie ma stawki", () => {
-    expect(rateForMonth(stawki, "2025-12")).toBeNull();
+  it("stawka działa od wpisanego dnia włącznie", () => {
+    expect(rateOnDay(stawki, dzien("2026-07-15"))?.grosze).toBe(18000);
   });
 
-  it("podwyżka w połowie miesiąca działa od kolejnego miesiąca", () => {
-    const zSrodka = [{ grosze: 20000, validFrom: dzien("2026-08-15") }];
-    expect(rateForMonth(zSrodka, "2026-08")).toBeNull();
-    expect(rateForMonth(zSrodka, "2026-09")?.grosze).toBe(20000);
+  it("dzień przed pierwszą stawką nie ma stawki", () => {
+    expect(rateOnDay(stawki, dzien("2025-12-31"))).toBeNull();
   });
 
   it("kolejność wpisów nie ma znaczenia", () => {
     const odwrotnie = [...stawki].reverse();
-    expect(rateForMonth(odwrotnie, "2026-08")?.grosze).toBe(18000);
+    expect(rateOnDay(odwrotnie, dzien("2026-08-01"))?.grosze).toBe(18000);
   });
 });
 
@@ -252,7 +254,71 @@ describe("assignmentCostWithRates", () => {
       [],
       []
     );
-    expect(m).toMatchObject({ grosze: 0, rateSource: null, rateGrosze: null });
+    expect(m).toMatchObject({
+      grosze: 0,
+      rateSource: null,
+      rateGrosze: null,
+      missingRate: true,
+    });
+  });
+
+  it("zmiana stawki w połowie miesiąca działa od swojej daty", () => {
+    // Październik 2026: 1–14 to 10 dni roboczych, 15–31 to 12 dni roboczych.
+    const zmiana = [
+      { grosze: 10000, validFrom: dzien("2026-01-01") },
+      { grosze: 12000, validFrom: dzien("2026-10-15") },
+    ];
+    const [m] = assignmentCostWithRates(
+      { ...whole("2026-10", "2026-10"), fte: 1 },
+      [],
+      zmiana
+    );
+    expect(m.hours).toBe(22 * 8);
+    expect(m.grosze).toBe(10 * 8 * 10000 + 12 * 8 * 12000);
+    // Dwie różne stawki w miesiącu — jednej „stawki miesiąca" nie ma.
+    expect(m.rateGrosze).toBeNull();
+  });
+
+  it("stawka pracownika od połowy miesiąca zastępuje stawkę stanowiska od tego dnia", () => {
+    const [m] = assignmentCostWithRates(
+      { ...whole("2026-10", "2026-10"), fte: 0.5 },
+      [{ grosze: 20000, validFrom: dzien("2026-10-15") }],
+      stanowiska
+    );
+    expect(m.grosze).toBe(10 * 4 * 12000 + 12 * 4 * 20000);
+    expect(m.rateSource).toBe("position");
+    expect(m.missingRate).toBe(false);
+  });
+
+  it("stawka wpisana w trakcie miesiąca: dni przed nią nie mają kosztu", () => {
+    const [m] = assignmentCostWithRates(
+      { ...whole("2026-10", "2026-10"), fte: 1 },
+      [{ grosze: 10000, validFrom: dzien("2026-10-15") }],
+      []
+    );
+    expect(m.grosze).toBe(12 * 8 * 10000);
+    expect(m.missingRate).toBe(true);
+  });
+
+  it("przydział od dnia stawki nie ma braków", () => {
+    const [m] = assignmentCostWithRates(
+      { startDate: dzien("2026-10-15"), endDate: dzien("2026-10-31"), fte: 1 },
+      [{ grosze: 10000, validFrom: dzien("2026-10-15") }],
+      []
+    );
+    expect(m.missingRate).toBe(false);
+    expect(m.rateGrosze).toBe(10000);
+  });
+
+  it("miesiąc bez dni roboczych w przydziale nie zgłasza braku stawki", () => {
+    // 1 listopada 2026 to niedziela (i święto).
+    const months = assignmentCostWithRates(
+      { startDate: dzien("2026-10-26"), endDate: dzien("2026-11-01"), fte: 1 },
+      [{ grosze: 10000, validFrom: dzien("2026-01-01") }],
+      []
+    );
+    expect(months.map((m) => m.missingRate)).toEqual([false, false]);
+    expect(months[1].hours).toBe(0);
   });
 });
 

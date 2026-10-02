@@ -5,9 +5,10 @@ import { ClipboardList, Gauge } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
-import { roleLabels } from "@/lib/permissions";
+import { can, roleLabels } from "@/lib/permissions";
 import { employeeWorkload, monthsBetween } from "@/lib/staffing";
-import { formatMonthLabel, ym, ymd, formatYmdRange } from "@/lib/timeline";
+import { formatMonthLabel, ym, ymd, formatYmdRange, todayInPoland } from "@/lib/timeline";
+import { formatFte } from "@/lib/fte";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ const statusMeta = {
 
 /** Oś czasu karty: trzy miesiące wstecz i dziewięć w przód od dziś. */
 function timelineMonths(): string[] {
-  const now = new Date();
+  const now = todayInPoland();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1));
   const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 9, 1));
   return monthsBetween(ym(from), ym(to));
@@ -58,7 +59,9 @@ export default async function EmployeeDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireCapability("viewResources");
+  const { role } = await requireCapability("viewResources");
+  // Administracja widzi obłożenie, ale nie projekty — nazwy zostają, bez linków.
+  const canOpenProjects = can(role, "viewProjects");
 
   const { id } = await params;
 
@@ -109,7 +112,7 @@ export default async function EmployeeDetailPage({
 
   const months = timelineMonths();
   const workload = employeeWorkload(months, assignments);
-  const currentMonth = ym(new Date());
+  const currentMonth = ym(todayInPoland());
   const thisMonth = workload.find((m) => m.month === currentMonth);
   const overloadedMonths = workload.filter((m) => m.isOverloaded);
 
@@ -135,10 +138,14 @@ export default async function EmployeeDetailPage({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           label={`Obciążenie (${formatMonthLabel(currentMonth)})`}
-          value={String(Number((thisMonth?.total ?? 0).toFixed(2)))}
+          value={formatFte(thisMonth?.total ?? 0)}
           icon={Gauge}
-          tone={thisMonth?.isOverloaded ? "warn" : "default"}
-          hint="Udział w bieżącym miesiącu: przydział pokrywający tylko część miesiąca liczy się proporcjonalnie do swoich dni roboczych. Przeciążenie wykrywamy osobno, ze szczytu dziennego — dwa tygodnie na 1.5 FTE są widoczne, choć po uśrednieniu na miesiąc wyglądałyby spokojnie."
+          tone={thisMonth?.isOverloaded ? "alert" : "default"}
+          hint={`Udział w bieżącym miesiącu: przydział pokrywający tylko część miesiąca liczy się proporcjonalnie do swoich dni roboczych. Przeciążenie wykrywamy osobno, ze szczytu dziennego — dwa tygodnie na 1,50 FTE są widoczne, choć po uśrednieniu na miesiąc wyglądałyby spokojnie.${
+            thisMonth?.isOverloaded
+              ? ` W tym miesiącu najwyższa dzienna suma to ${formatFte(thisMonth.peak)} FTE, dlatego wartość jest wyróżniona.`
+              : ""
+          }`}
         />
         <StatCard
           label="Projekty"
@@ -151,7 +158,7 @@ export default async function EmployeeDetailPage({
           value={overloadedMonths.length}
           icon={Gauge}
           tone="warn"
-          hint="Ile miesięcy na osi czasu poniżej ma choć jeden dzień roboczy z sumą FTE powyżej 1.00. Oś obejmuje trzy miesiące wstecz i dziewięć w przód od dziś, więc dalsza przyszłość nie jest tu liczona."
+          hint="Ile miesięcy na osi czasu poniżej ma choć jeden dzień roboczy z sumą FTE powyżej 1,00. Oś obejmuje trzy miesiące wstecz i dziewięć w przód od dziś, więc dalsza przyszłość nie jest tu liczona."
         />
       </div>
 
@@ -207,12 +214,16 @@ export default async function EmployeeDetailPage({
                     className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
                   >
                     <div className="min-w-0">
-                      <Link
-                        href={`/app/projekty/${a.projectId}`}
-                        className="truncate font-medium hover:underline"
-                      >
-                        {a.projectName}
-                      </Link>
+                      {canOpenProjects ? (
+                        <Link
+                          href={`/app/projekty/${a.projectId}`}
+                          className="truncate font-medium hover:underline"
+                        >
+                          {a.projectName}
+                        </Link>
+                      ) : (
+                        <span className="truncate font-medium">{a.projectName}</span>
+                      )}
                       <div className="text-xs text-muted-foreground">
                         {a.rolePosition} · {formatYmdRange(ymd(a.startDate), ymd(a.endDate))}
                       </div>
@@ -221,7 +232,7 @@ export default async function EmployeeDetailPage({
                       variant={a.isConflict ? "destructive" : "secondary"}
                       className={cn("shrink-0 tabular-nums")}
                     >
-                      {a.fte.toFixed(2)} FTE
+                      {formatFte(a.fte)} FTE
                     </Badge>
                   </li>
                 ))}

@@ -159,7 +159,47 @@ describe("roleCoverage / roleHasGap", () => {
       { id: "a", startDate: d("2026-07-01"), endDate: d("2026-07-15"), fte: 1.0 },
     ]);
     expect(cov[0].assigned).toBe(0.48);
-    expect(cov[0].gap).toBe(0.52);
+    // Od 16 lipca nikt nie pracuje: brakuje całego etatu przez 12 dni roboczych.
+    expect(cov[0].gap).toBe(1);
+    expect(cov[0].gapDays).toBe(12);
+  });
+
+  it("dwie osoby na pierwszą połowę to nadal niedobór w drugiej połowie", () => {
+    // Suma FTE w miesiącu wygląda na pełną obsadę (2 × 0.48), ale od 16 lipca
+    // rola stoi pusta — a to właśnie ma wyjść.
+    const half = { startDate: d("2026-07-01"), endDate: d("2026-07-15") };
+    const assignments = [
+      { id: "a", ...half, fte: 1.0 },
+      { id: "b", ...half, fte: 1.0 },
+    ];
+    expect(roleHasGap(role, assignments)).toBe(true);
+    expect(roleHasSurplus(role, assignments)).toBe(true);
+  });
+
+  it("ciągła obsada kilkoma osobami to pełne pokrycie, bez błędów zaokrągleń", () => {
+    const s = roleCoverageSummary(role, [
+      { id: "a", startDate: d("2026-07-01"), endDate: d("2026-07-01"), fte: 1.0 },
+      { id: "b", startDate: d("2026-07-02"), endDate: d("2026-07-02"), fte: 1.0 },
+      { id: "c", startDate: d("2026-07-03"), endDate: d("2026-07-31"), fte: 1.0 },
+    ]);
+    expect(s.months[0].assigned).toBe(1);
+    expect(s.percent).toBe(100);
+    expect(s.status).toBe("exact");
+  });
+
+  it("część przydziału poza okresem roli nie podbija pokrycia", () => {
+    const s = roleCoverageSummary(role, [
+      { id: "a", startDate: d("2026-11-01"), endDate: d("2026-11-30"), fte: 1.0 },
+    ]);
+    expect(s.assignedTotal).toBe(0);
+    expect(s.status).toBe("gap");
+  });
+
+  it("rola wyłącznie w weekend nie ma czego pokrywać", () => {
+    const weekend = { startDate: d("2026-10-03"), endDate: d("2026-10-04"), requiredFte: 1 };
+    const s = roleCoverageSummary(weekend, []);
+    expect(s.hasWorkingDays).toBe(false);
+    expect(s.status).toBe("exact");
   });
 });
 

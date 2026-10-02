@@ -4,9 +4,10 @@ import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
-import { isOverAllocated, sumFte } from "@/lib/fte";
-import { fteShareInMonth, monthBounds, monthsCovered } from "@/lib/period";
-import { formatMonthLabel, ym } from "@/lib/timeline";
+import { formatFte } from "@/lib/fte";
+import { monthBounds } from "@/lib/period";
+import { employeeWorkload, type WorkloadMonth } from "@/lib/staffing";
+import { formatMonthLabel, todayInPoland, ym } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { InfoHint } from "@/components/info-hint";
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 
 // Lista miesięcy "YYYY-MM" dla wybranego zakresu.
 function monthsForRange(range: string): string[] {
-  const now = new Date();
+  const now = todayInPoland();
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth();
 
@@ -39,13 +40,15 @@ function monthsForRange(range: string): string[] {
 }
 
 function fmtFte(v: number) {
-  return v === 0 ? "—" : String(Number(v.toFixed(2)));
+  return v === 0 ? "—" : formatFte(v);
 }
 
-function cellClass(v: number) {
-  if (isOverAllocated(v)) return "bg-destructive/10 text-destructive font-medium";
-  if (Math.round(v * 100) === 100) return "bg-primary/10 text-primary font-medium";
-  if (v === 0) return "text-muted-foreground";
+// Czerwień = przeciążenie ze szczytu dziennego, nie z udziału w miesiącu:
+// dwa tygodnie na 1,50 FTE to realny problem, nawet gdy miesiąc wychodzi 0,80.
+function cellClass(w: WorkloadMonth) {
+  if (w.isOverloaded) return "bg-destructive/10 text-destructive font-medium";
+  if (Math.round(w.total * 100) === 100) return "bg-primary/10 text-primary font-medium";
+  if (w.total === 0) return "text-muted-foreground";
   return "";
 }
 
@@ -84,28 +87,25 @@ export default async function ZasobyPage({
         startDate: { lte: monthBounds(months[months.length - 1]).last },
         endDate: { gte: monthBounds(months[0]).first },
       },
-      select: { userId: true, startDate: true, endDate: true, fte: true },
+      select: { id: true, userId: true, startDate: true, endDate: true, fte: true },
     }),
     prisma.skill.findMany({ orderBy: { name: "asc" }, select: { name: true } }),
   ]);
 
   // Udział w miesiącu, nie surowe FTE: przydział na pół lipca liczy się w
   // lipcu za połowę, bo siatka odpowiada na pytanie „ile pracy w tym miesiącu".
-  const monthSet = new Set(months);
-  const loadMap = new Map<string, number[]>(); // "userId:month" → lista udziałów
+  // Przeciążenie — ze szczytu dziennego. Ta sama funkcja liczy kartę
+  // pracownika, listę pracowników i panel, więc liczby się nie rozjeżdżają.
+  const byUser = new Map<string, { id: string; startDate: Date; endDate: Date; fte: number }[]>();
   for (const a of loads) {
-    for (const m of monthsCovered(a.startDate, a.endDate)) {
-      if (!monthSet.has(m)) continue;
-      const key = `${a.userId}:${m}`;
-      const list = loadMap.get(key) ?? [];
-      list.push(fteShareInMonth(Number(a.fte), a.startDate, a.endDate, m));
-      loadMap.set(key, list);
-    }
+    const list = byUser.get(a.userId) ?? [];
+    list.push({ id: a.id, startDate: a.startDate, endDate: a.endDate, fte: Number(a.fte) });
+    byUser.set(a.userId, list);
   }
 
   const rows = employees
     .map((e) => {
-      const cells = months.map((m) => sumFte(loadMap.get(`${e.id}:${m}`) ?? []));
+      const cells = employeeWorkload(months, byUser.get(e.id) ?? []);
       return {
         id: e.id,
         firstName: e.firstName,
@@ -113,8 +113,8 @@ export default async function ZasobyPage({
         positionName: e.position?.name ?? null,
         skillNames: e.skills.map((s) => s.name),
         cells,
-        hasGap: cells.some((v) => v < 1),
-        hasOver: cells.some((v) => isOverAllocated(v)),
+        hasGap: cells.some((w) => w.total < 1),
+        hasOver: cells.some((w) => w.isOverloaded),
       };
     })
     .filter((r) =>
@@ -154,9 +154,10 @@ export default async function ZasobyPage({
                       przydział pokrywający pół miesiąca liczy się za pół, bo
                       pytanie brzmi „ile pracy w tym miesiącu”. Kreska oznacza
                       brak zaangażowania, kolor niebieski dokładnie pełny etat
-                      (1.00), a czerwony wartość powyżej 1.00, czyli
-                      przeciążenie. Na liście są wyłącznie osoby o statusie
-                      „Aktywny”.
+                      (1,00), a czerwony przeciążenie — dzień roboczy, w którym
+                      suma przydziałów przekracza 1,00, nawet jeśli udział w
+                      miesiącu jest niższy. Na liście są wyłącznie osoby o
+                      statusie „Aktywny”.
                     </InfoHint>
                   </span>
                 </th>
@@ -191,15 +192,20 @@ export default async function ZasobyPage({
                       ))}
                     </div>
                   </td>
-                  {r.cells.map((v, i) => (
-                    <td key={months[i]} className="px-2 py-2 text-center">
+                  {r.cells.map((w) => (
+                    <td key={w.month} className="px-2 py-2 text-center">
                       <span
+                        title={
+                          w.isOverloaded
+                            ? `Przeciążenie: w najgorszym dniu ${formatFte(w.peak)} FTE`
+                            : undefined
+                        }
                         className={cn(
                           "inline-block min-w-10 rounded-md px-2 py-1 tabular-nums",
-                          cellClass(v)
+                          cellClass(w)
                         )}
                       >
-                        {fmtFte(v)}
+                        {fmtFte(w.total)}
                       </span>
                     </td>
                   ))}

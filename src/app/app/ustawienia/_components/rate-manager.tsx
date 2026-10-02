@@ -6,6 +6,7 @@ import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { addRate, deleteRate } from "@/app/actions/rates";
 import { formatGrosze, toGrosze } from "@/lib/cost";
 import { useActionEffect } from "@/lib/hooks/use-action-effect";
+import { todayInPoland, ymd } from "@/lib/timeline";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,9 +35,18 @@ export type RateOwner = {
 };
 
 const fmtDate = (iso: string) =>
-  new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium" }).format(
+  new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeZone: "UTC" }).format(
     new Date(`${iso}T00:00:00.000Z`)
   );
+
+/**
+ * Stawka obowiązująca dziś: najpóźniejsza, która już weszła w życie. Stawka z
+ * przyszłą datą jest zaplanowana, a nie aktualna — koszty liczą ją dopiero od
+ * jej dnia. `rates` są posortowane od najnowszej.
+ */
+function currentRate(rates: RateRow[], today: string): RateRow | undefined {
+  return rates.find((r) => r.validFrom <= today);
+}
 
 /**
  * Lista właścicieli stawek (stanowisk albo pracowników) z historią. Rozwijamy
@@ -55,6 +65,7 @@ export function RateManager({
   owners: RateOwner[];
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const today = ymd(todayInPoland());
 
   return (
     <Card>
@@ -70,7 +81,8 @@ export function RateManager({
         ) : (
           <ul className="divide-y rounded-lg border">
             {owners.map((owner) => {
-              const current = owner.rates[0];
+              const current = currentRate(owner.rates, today);
+              const planned = owner.rates.filter((r) => r.validFrom > today);
               const isOpen = openId === owner.id;
               return (
                 <li key={owner.id} className="flex flex-col">
@@ -103,13 +115,18 @@ export function RateManager({
                       </span>
                     ) : (
                       <Badge variant="outline" className="shrink-0 font-normal">
-                        brak stawki
+                        {planned.length > 0 ? "brak stawki na dziś" : "brak stawki"}
+                      </Badge>
+                    )}
+                    {planned.length > 0 && (
+                      <Badge variant="outline" className="shrink-0 font-normal">
+                        zaplanowana od {fmtDate(planned[planned.length - 1].validFrom)}
                       </Badge>
                     )}
                   </button>
 
                   {isOpen && (
-                    <RateHistory kind={kind} owner={owner} />
+                    <RateHistory kind={kind} owner={owner} currentId={current?.id} today={today} />
                   )}
                 </li>
               );
@@ -124,9 +141,13 @@ export function RateManager({
 function RateHistory({
   kind,
   owner,
+  currentId,
+  today,
 }: {
   kind: "employee" | "position";
   owner: RateOwner;
+  currentId: string | undefined;
+  today: string;
 }) {
   const [state, formAction, pending] = useActionState(
     addRate.bind(null, kind, owner.id),
@@ -192,7 +213,7 @@ function RateHistory({
         </p>
       ) : (
         <ul className="flex flex-col gap-1">
-          {owner.rates.map((rate, i) => (
+          {owner.rates.map((rate) => (
             <li
               key={rate.id}
               className="flex items-center justify-between gap-3 rounded-md bg-card px-2.5 py-1.5 text-sm"
@@ -202,9 +223,14 @@ function RateHistory({
                 <span className="ml-2 text-muted-foreground">
                   od {fmtDate(rate.validFrom)}
                 </span>
-                {i === 0 && (
+                {rate.id === currentId && (
                   <Badge variant="secondary" className="ml-2 font-normal">
                     aktualna
+                  </Badge>
+                )}
+                {rate.validFrom > today && (
+                  <Badge variant="outline" className="ml-2 font-normal">
+                    zaplanowana
                   </Badge>
                 )}
               </span>

@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import { monthBounds } from "@/lib/period";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/app/actions/auth";
-import { sumFte } from "@/lib/fte";
+import { employeeWorkload } from "@/lib/staffing";
+import { todayInPoland, ym } from "@/lib/timeline";
 import { SearchInput } from "./_components/search-input";
 import { SkillFilter } from "./_components/skill-filter";
 import { EmployeesTable } from "./_components/employees-table";
@@ -30,7 +31,7 @@ export default async function EmployeesPage({
   const skillFilter = skill?.trim() ?? "";
 
   // Bieżący miesiąc w formacie "YYYY-MM" — do kolumny "Obciążenie".
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = ym(todayInPoland());
   const { first: monthStart, last: monthEnd } = monthBounds(currentMonth);
 
   const [employees, approvedCount, loads, skillRows, positions] = await Promise.all([
@@ -73,7 +74,7 @@ export default async function EmployeesPage({
         startDate: { lte: monthEnd },
         endDate: { gte: monthStart },
       },
-      select: { userId: true, fte: true },
+      select: { id: true, userId: true, startDate: true, endDate: true, fte: true },
     }),
     // Słowniki: kompetencje do filtra i formularza, stanowiska do formularza.
     prisma.skill.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -85,14 +86,22 @@ export default async function EmployeesPage({
 
   const allSkills = skillRows.map((s) => s.name);
 
-  const ftesByUser = new Map<string, number[]>();
+  // Ta sama miara co w Zasobach i na karcie: udział w miesiącu, a
+  // przeciążenie ze szczytu dziennego.
+  const byUser = new Map<string, typeof loads>();
   for (const a of loads) {
-    const list = ftesByUser.get(a.userId) ?? [];
-    list.push(Number(a.fte));
-    ftesByUser.set(a.userId, list);
+    const list = byUser.get(a.userId) ?? [];
+    list.push(a);
+    byUser.set(a.userId, list);
   }
   const loadByUser = new Map(
-    [...ftesByUser].map(([userId, ftes]) => [userId, sumFte(ftes)])
+    [...byUser].map(([userId, list]) => [
+      userId,
+      employeeWorkload(
+        [currentMonth],
+        list.map((a) => ({ ...a, fte: Number(a.fte) }))
+      )[0],
+    ])
   );
   const employeesWithLoad = employees.map((e) => ({
     id: e.id,
@@ -106,7 +115,8 @@ export default async function EmployeesPage({
     positionId: e.positionId,
     positionName: e.position?.name ?? null,
     skills: e.skills,
-    monthlyFte: loadByUser.get(e.id) ?? 0,
+    monthlyFte: loadByUser.get(e.id)?.total ?? 0,
+    isOverloaded: loadByUser.get(e.id)?.isOverloaded ?? false,
   }));
 
   return (

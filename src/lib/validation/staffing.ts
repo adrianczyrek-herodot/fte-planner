@@ -1,20 +1,11 @@
 import * as z from "zod";
 
-// Data dzienna. Sam regex nie odsiewa 31 lutego, więc dokładamy sprawdzenie,
-// czy parser odtworzy dokładnie tę datę, którą dostał.
-const day = z
-  .string()
-  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, {
-    error: "Data w formacie RRRR-MM-DD.",
-  })
-  .refine(
-    (value) => {
-      const [y, m, d] = value.split("-").map(Number);
-      const parsed = new Date(Date.UTC(y, m - 1, d));
-      return parsed.getUTCMonth() === m - 1 && parsed.getUTCDate() === d;
-    },
-    { error: "Taka data nie istnieje." }
-  );
+import { dayString as day, decimalInput } from "@/lib/validation/date";
+
+// FTE zapisujemy z dokładnością do setnych (Decimal(4,2)), więc minimum
+// sprawdzamy PO zaokrągleniu — inaczej 0.004 przechodziło jako „większe od 0"
+// i lądowało w bazie jako 0.00.
+const atLeastHundredth = (v: number) => Math.round(v * 100) >= 1;
 
 // --- Zapotrzebowanie na rolę (ProjectRole) ---------------------------------
 // Puste → null; inaczej dodatnia liczba całkowita.
@@ -34,10 +25,13 @@ export const ProjectRoleSchema = z
     positionId: z.string().trim().min(1, { error: "Wybierz stanowisko." }),
     startDate: day,
     endDate: day,
-    requiredFte: z.coerce
-      .number({ error: "Podaj wymagane FTE." })
-      .gt(0, { error: "FTE musi być większe od 0." })
-      .max(99, { error: "FTE zbyt duże." }),
+    requiredFte: z.preprocess(
+      decimalInput,
+      z.coerce
+        .number({ error: "Podaj wymagane FTE." })
+        .refine(atLeastHundredth, { error: "FTE musi wynosić co najmniej 0,01." })
+        .max(99, { error: "FTE zbyt duże." })
+    ),
     requiredPeople: optionalPeople,
   })
   .refine((d) => d.startDate <= d.endDate, {
@@ -65,10 +59,13 @@ export const AssignmentSchema = z
     userId: z.string().min(1, { error: "Wybierz pracownika." }),
     startDate: day,
     endDate: day,
-    fte: z.coerce
-      .number({ error: "Podaj wartość FTE." })
-      .gt(0, { error: "FTE musi być większe od 0." })
-      .max(1, { error: "Pojedynczy przydział nie może przekraczać 1.00 FTE." }),
+    fte: z.preprocess(
+      decimalInput,
+      z.coerce
+        .number({ error: "Podaj wartość FTE." })
+        .refine(atLeastHundredth, { error: "FTE musi wynosić co najmniej 0,01." })
+        .max(1, { error: "Pojedynczy przydział nie może przekraczać 1,00 FTE." })
+    ),
   })
   .refine((d) => d.startDate <= d.endDate, {
     error: "Data końcowa nie może być wcześniejsza niż początkowa.",

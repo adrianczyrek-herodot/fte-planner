@@ -19,7 +19,13 @@
 //    niej kumulowały. Zaokrąglamy tylko na wyjściu.
 
 import { workingDayHolidaysInMonth } from "@/lib/holidays";
-import { monthsCovered, workingDaysCoveredInMonth } from "@/lib/period";
+import {
+  clampToMonth,
+  isWorkingDay,
+  monthsCovered,
+  workingDaysCoveredInMonth,
+} from "@/lib/period";
+import { dateFromDayIndex, dayIndex } from "@/lib/timeline";
 
 /** Godziny pracy w jednym dniu roboczym dla 1.0 FTE. */
 export const HOURS_PER_WORKING_DAY = 8;
@@ -27,7 +33,9 @@ export const HOURS_PER_WORKING_DAY = 8;
 /**
  * Liczba dni roboczych w miesiącu "YYYY-MM": dni od poniedziałku do piątku
  * pomniejszone o dni ustawowo wolne od pracy, które w taki dzień wypadają.
- * Święto w sobotę lub niedzielę nic nie zmienia, bo weekendu i tak nie liczymy.
+ * Święto w sobotę lub niedzielę nic nie zmienia — świadomie: współpraca jest
+ * rozliczana w modelu B2B, więc nie stosujemy reguły z Kodeksu pracy, w której
+ * święto w sobotę obniża wymiar czasu pracy.
  */
 export function workingDaysInMonth(month: string): number {
   const [year, m] = month.split("-").map(Number);
@@ -74,12 +82,15 @@ export function toGrosze(pln: number): number {
   return Math.round(pln * 100);
 }
 
-/** Grosze → tekst w złotówkach, do wyświetlenia. */
+/** Grosze → tekst w złotówkach z groszami, do wyświetlenia. */
 export function formatGrosze(grosze: number): string {
   return new Intl.NumberFormat("pl-PL", {
     style: "currency",
     currency: "PLN",
-    maximumFractionDigits: 0,
+    // Zawsze z groszami: przy stawkach 85,50 zł/h zaokrąglenie do złotówek
+    // rozjeżdżało sumy wierszy z sumą całkowitą.
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
     // Polski locale domyślnie pomija separator przy czterech cyfrach ("4800"),
     // co w kolumnie kwot obok "84 840" wygląda na niedopatrzenie.
     useGrouping: "always",
@@ -129,27 +140,17 @@ export type RateEntry = {
 };
 
 /**
- * Stawka obowiązująca w danym miesiącu: najpóźniejsza, której data
- * obowiązywania nie jest późniejsza niż PIERWSZY DZIEŃ tego miesiąca.
- *
- * Wybór pierwszego dnia jest świadomy: koszt raportujemy miesiąc po miesiącu,
- * więc podwyżka wchodząca w połowie miesiąca musi mieć jednoznaczny moment.
- * Zasada brzmi „stawka z początku miesiąca obowiązuje przez cały miesiąc", a
- * zmiana od 15. działa od kolejnego miesiąca. Rozliczanie stawek co do dnia
- * jest możliwe, ale wymaga decyzji biznesowej — dziś nikt o nie nie prosił.
+ * Stawka obowiązująca w danym dniu: najpóźniejsza, której data obowiązywania
+ * nie jest późniejsza niż ten dzień. Stawka działa dokładnie od wpisanej daty —
+ * podwyżka od 15. października liczy się od 15., a nie od listopada.
  */
-export function rateForMonth(
-  rates: RateEntry[],
-  month: string
-): RateEntry | null {
-  const [year, m] = month.split("-").map(Number);
-  const monthStart = Date.UTC(year, m - 1, 1);
-
-  const obowiazujace = rates
-    .filter((r) => r.validFrom.getTime() <= monthStart)
-    .sort((a, b) => b.validFrom.getTime() - a.validFrom.getTime());
-
-  return obowiazujace[0] ?? null;
+export function rateOnDay(rates: RateEntry[], day: Date): RateEntry | null {
+  let best: RateEntry | null = null;
+  for (const r of rates) {
+    if (r.validFrom.getTime() > day.getTime()) continue;
+    if (!best || r.validFrom.getTime() > best.validFrom.getTime()) best = r;
+  }
+  return best;
 }
 
 /**
@@ -173,35 +174,70 @@ export function effectiveHourlyRate(
 export type RateSource = "employee" | "position";
 
 export type AssignmentCostMonth = MonthCost & {
-  /** Skąd wzięła się stawka użyta w tym miesiącu. */
+  /**
+   * Skąd wzięła się stawka: "position", gdy choć jeden dzień liczono stawką
+   * stanowiska, "employee", gdy wszystkie własną stawką pracownika, null, gdy
+   * w tym miesiącu nie użyto żadnej stawki.
+   */
   rateSource: RateSource | null;
-  /** Stawka godzinowa użyta w tym miesiącu, w groszach. */
+  /** Stawka godzinowa w groszach, gdy przez cały miesiąc była jedna; inaczej null. */
   rateGrosze: number | null;
+  /**
+   * Czy w którymś pracującym dniu tego miesiąca zabrakło stawki. Godziny z tych
+   * dni nie mają kosztu, więc koszt i marża są wtedy niedoszacowane.
+   */
+  missingRate: boolean;
 };
 
 /**
  * Koszt przydziału miesiąc po miesiącu, z uwzględnieniem historii stawek i
- * fallbacku na stanowisko. Miesiąc bez żadnej stawki ma koszt null-owy
- * (grosze 0 i rateSource null) — nie zgadujemy kwoty, bo zaniżony koszt jest
- * gorszy niż jawnie brakujący.
+ * fallbacku na stanowisko. Stawkę wybieramy dla każdego dnia roboczego osobno,
+ * więc zmiana stawki w połowie miesiąca działa od swojej daty. Dzień bez żadnej
+ * stawki nie ma kosztu i oznacza miesiąc jako niepełny — nie zgadujemy kwoty,
+ * bo zaniżony koszt jest gorszy niż jawnie brakujący.
  */
 export function assignmentCostWithRates(
   assignment: { startDate: Date; endDate: Date; fte: number },
   employeeRates: RateEntry[],
   positionRates: RateEntry[]
 ): AssignmentCostMonth[] {
+  const dayHours = assignment.fte * HOURS_PER_WORKING_DAY;
+
   return monthsCovered(assignment.startDate, assignment.endDate).map((month) => {
     const hours = assignmentHoursInMonth(assignment, month);
-    const own = rateForMonth(employeeRates, month);
-    const fallback = rateForMonth(positionRates, month);
-    const chosen = own ?? fallback;
+    const part = clampToMonth(assignment.startDate, assignment.endDate, month);
+
+    let exactGrosze = 0;
+    let usedOwn = false;
+    let usedPosition = false;
+    let missingRate = false;
+    const ratesUsed = new Set<number>();
+
+    if (part && dayHours > 0) {
+      for (let d = dayIndex(part.from); d <= dayIndex(part.to); d++) {
+        const day = dateFromDayIndex(d);
+        if (!isWorkingDay(day)) continue;
+
+        const own = rateOnDay(employeeRates, day);
+        const chosen = own ?? rateOnDay(positionRates, day);
+        if (!chosen) {
+          missingRate = true;
+          continue;
+        }
+        if (own) usedOwn = true;
+        else usedPosition = true;
+        ratesUsed.add(chosen.grosze);
+        exactGrosze += dayHours * chosen.grosze;
+      }
+    }
 
     return {
       month,
       hours,
-      grosze: chosen ? Math.round(hours * chosen.grosze) : 0,
-      rateGrosze: chosen?.grosze ?? null,
-      rateSource: chosen ? (own ? "employee" : "position") : null,
+      grosze: Math.round(exactGrosze),
+      rateGrosze: ratesUsed.size === 1 ? [...ratesUsed][0] : null,
+      rateSource: usedPosition ? "position" : usedOwn ? "employee" : null,
+      missingRate,
     };
   });
 }
@@ -218,7 +254,7 @@ export type ProjectCostSummary = {
   marginGrosze: number | null;
   /** Marża jako procent budżetu; null bez budżetu lub przy budżecie zerowym. */
   marginPercent: number | null;
-  /** Liczba miesięcy przydziałów, dla których nie znaleziono żadnej stawki. */
+  /** Liczba miesięcy przydziałów, w których choć jeden dzień nie miał stawki. */
   monthsWithoutRate: number;
 };
 
@@ -246,6 +282,6 @@ export function projectCostSummary(
       budgetGrosze == null || budgetGrosze === 0
         ? null
         : Math.round(((budgetGrosze - totalGrosze) / budgetGrosze) * 100),
-    monthsWithoutRate: laborMonths.filter((m) => m.rateSource === null).length,
+    monthsWithoutRate: laborMonths.filter((m) => m.missingRate).length,
   };
 }

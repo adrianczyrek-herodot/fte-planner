@@ -8,6 +8,8 @@ import { AlertTriangle, Check, ChevronRight, Undo2 } from "lucide-react";
 import { rescheduleProject } from "@/app/actions/projects";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatFte } from "@/lib/fte";
+import { pluralize } from "@/lib/plural";
 import {
   dateFromDayIndex,
   dayCount,
@@ -316,7 +318,7 @@ export function TimelineGantt({
                       {v.person.name}
                     </Link>
                     <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-                      {v.person.fte.toFixed(2)} FTE
+                      {formatFte(v.person.fte)} FTE
                     </span>
                   </div>
                 );
@@ -351,7 +353,7 @@ export function TimelineGantt({
                     title={
                       row.people.length === 0
                         ? "Brak obsady"
-                        : `${row.people.length} ${row.people.length === 1 ? "osoba" : "osób"} na projekcie`
+                        : `${pluralize(row.people.length, "osoba", "osoby", "osób")} na projekcie`
                     }
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded transition-colors",
@@ -401,7 +403,7 @@ export function TimelineGantt({
                       {formatDayRange(pos.startDay, pos.endDay)}
                       <span className="text-muted-foreground">
                         {" "}
-                        · {dayCount(pos.startDay, pos.endDay)} dni
+                        · {pluralize(dayCount(pos.startDay, pos.endDay), "dzień", "dni", "dni")}
                       </span>
                     </div>
                   </div>
@@ -490,10 +492,10 @@ export function TimelineGantt({
                           : "bg-primary/25 text-primary"
                       )}
                       style={{ left, width: barW, height: CHILD_H - 16 }}
-                      title={`${p.name} — ${p.rolePosition}: ${formatDayRange(p.startDay, p.endDay)}, ${p.fte.toFixed(2)} FTE`}
+                      title={`${p.name} — ${p.rolePosition}: ${formatDayRange(p.startDay, p.endDay)}, ${formatFte(p.fte)} FTE`}
                     >
                       <span className="truncate">{p.rolePosition}</span>
-                      <span className="shrink-0 tabular-nums">{p.fte.toFixed(2)}</span>
+                      <span className="shrink-0 tabular-nums">{formatFte(p.fte)}</span>
                     </div>
                   </div>
                 );
@@ -541,7 +543,7 @@ export function TimelineGantt({
                       style={{ left }}
                     >
                       {formatDayLabel(pos.startDay)} → {formatDayLabel(pos.endDay)} (
-                      {dayCount(pos.startDay, pos.endDay)} dni)
+                      {pluralize(dayCount(pos.startDay, pos.endDay), "dzień", "dni", "dni")})
                     </div>
                   )}
                 </div>

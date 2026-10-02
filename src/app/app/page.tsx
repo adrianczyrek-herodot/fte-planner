@@ -12,8 +12,9 @@ import { getCurrentRole } from "@/app/actions/auth";
 import { monthBounds } from "@/lib/period";
 import { prisma } from "@/lib/prisma";
 import { roleLabels } from "@/lib/permissions";
-import { ym, formatMonthLabel, ymd, formatYmdRange } from "@/lib/timeline";
-import { isOverAllocated, sumFte } from "@/lib/fte";
+import { ym, formatMonthLabel, ymd, formatYmdRange, todayInPoland } from "@/lib/timeline";
+import { formatFte } from "@/lib/fte";
+import { employeeWorkload } from "@/lib/staffing";
 import { formatDate, getProjectDueStatus, projectStatusMeta } from "@/lib/project-status";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -26,11 +27,11 @@ import {
 } from "@/components/ui/card";
 
 export default async function AppDashboardPage() {
-  const { session, role } = await getCurrentRole();
+  const { session, role, capabilities } = await getCurrentRole();
   const user = session.user;
 
-  const now = new Date();
-  const currentMonth = ym(now);
+  const today = todayInPoland();
+  const currentMonth = ym(today);
   // Granice bieżącego miesiąca — przydziały są dzienne, więc "ten miesiąc"
   // znaczy teraz "zakres nachodzący na przedział od pierwszego do ostatniego".
   const { first: monthStart, last: monthEnd } = monthBounds(currentMonth);
@@ -55,10 +56,16 @@ export default async function AppDashboardPage() {
       },
     });
 
-    const thisMonthFte = sumFte(
-      myAssignments
-        .filter((a) => a.startDate <= monthEnd && a.endDate >= monthStart)
-        .map((a) => Number(a.fte))
+    // Ta sama miara co w Zasobach i na karcie pracownika: udział w miesiącu,
+    // a przeciążenie ze szczytu dziennego.
+    const [thisMonth] = employeeWorkload(
+      [currentMonth],
+      myAssignments.map((a) => ({
+        id: a.id,
+        startDate: a.startDate,
+        endDate: a.endDate,
+        fte: Number(a.fte),
+      }))
     );
 
     return (
@@ -71,9 +78,10 @@ export default async function AppDashboardPage() {
         <div className="grid grid-cols-1 gap-4 sm:max-w-xs">
           <StatCard
             label={`Twoje obciążenie (${formatMonthLabel(currentMonth)})`}
-            value={String(Number(thisMonthFte.toFixed(2)))}
+            value={formatFte(thisMonth.total)}
             icon={Gauge}
-            hint="Suma FTE ze wszystkich Twoich przydziałów obejmujących ten miesiąc. 1.00 to pełny etat, więc wartość powyżej oznacza zaplanowanie ponad dostępność."
+            tone={thisMonth.isOverloaded ? "alert" : "default"}
+            hint="Ile etatu zajmują Twoje przydziały w tym miesiącu: przydział na pół miesiąca liczy się za połowę. 1,00 to pełny etat. Wyróżnienie oznacza, że w co najmniej jednym dniu roboczym suma Twoich przydziałów przekracza 1,00."
           />
         </div>
 
@@ -90,7 +98,7 @@ export default async function AppDashboardPage() {
           <CardContent>
             {myAssignments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nie masz jeszcze żadnych przydziałów.
+                Nie masz bieżących ani nadchodzących przydziałów.
               </p>
             ) : (
               <ul className="divide-y">
@@ -111,7 +119,7 @@ export default async function AppDashboardPage() {
                       variant={a.isConflict ? "destructive" : "secondary"}
                       className="shrink-0"
                     >
-                      {Number(a.fte).toFixed(2)} FTE
+                      {formatFte(Number(a.fte))} FTE
                     </Badge>
                   </li>
                 ))}
@@ -123,36 +131,51 @@ export default async function AppDashboardPage() {
     );
   }
 
-  // --- Pełny dashboard zarządczy (admin / menedżer) -------------------------
+  // --- Pełny dashboard zarządczy (admin / menedżer / administracja) --------
+  // Administracja nie ma wglądu w projekty, więc nie dostaje kafelka ani listy
+  // projektów — tylko to, co może dalej otworzyć (Zasoby).
+  const canSeeProjects = capabilities.includes("viewProjects");
+  const canSeeResources = capabilities.includes("viewResources");
+
   const [projectCount, employeeCount, monthAssignments, upcoming] =
     await Promise.all([
-      prisma.project.count(),
+      canSeeProjects ? prisma.project.count() : Promise.resolve(0),
       prisma.user.count({ where: { status: "approved" } }),
-      // Przydziały nachodzące na bieżący miesiąc.
+      // Przydziały aktywnych osób nachodzące na bieżący miesiąc.
       prisma.assignment.findMany({
         where: {
           startDate: { lte: monthEnd },
           endDate: { gte: monthStart },
+          user: { status: "approved" },
         },
-        select: { userId: true, fte: true },
+        select: { id: true, userId: true, startDate: true, endDate: true, fte: true },
       }),
-      prisma.project.findMany({
-        where: { endDate: { gte: now } },
-        orderBy: { endDate: "asc" },
-        take: 5,
-        select: { id: true, name: true, startDate: true, endDate: true },
-      }),
+      canSeeProjects
+        ? prisma.project.findMany({
+            where: { endDate: { gte: today } },
+            orderBy: [{ endDate: "asc" }, { name: "asc" }],
+            take: 5,
+            select: { id: true, name: true, startDate: true, endDate: true },
+          })
+        : Promise.resolve([]),
     ]);
 
   const assignmentCount = monthAssignments.length;
-  const ftesByUser = new Map<string, number[]>();
+  const byUser = new Map<string, typeof monthAssignments>();
   for (const a of monthAssignments) {
-    const list = ftesByUser.get(a.userId) ?? [];
-    list.push(Number(a.fte));
-    ftesByUser.set(a.userId, list);
+    const list = byUser.get(a.userId) ?? [];
+    list.push(a);
+    byUser.set(a.userId, list);
   }
-  const overloadedCount = [...ftesByUser.values()].filter((f) =>
-    isOverAllocated(sumFte(f))
+  // Przeciążenie ze szczytu dziennego — ta sama reguła, która oznacza konflikt
+  // przy przydziale. Dwa pełne etaty jeden po drugim w tym samym miesiącu to
+  // nie przeciążenie.
+  const overloadedCount = [...byUser.values()].filter(
+    (list) =>
+      employeeWorkload(
+        [currentMonth],
+        list.map((a) => ({ ...a, fte: Number(a.fte) }))
+      )[0].isOverloaded
   ).length;
 
   return (
@@ -165,34 +188,38 @@ export default async function AppDashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Projekty"
-          value={projectCount}
-          icon={FolderKanban}
-          hint="Wszystkie projekty w systemie, niezależnie od statusu i dat — również zakończone i jeszcze nierozpoczęte."
-        />
+        {canSeeProjects && (
+          <StatCard
+            label="Projekty"
+            value={projectCount}
+            icon={FolderKanban}
+            hint="Wszystkie projekty w systemie, niezależnie od statusu i dat — również zakończone i jeszcze nierozpoczęte."
+          />
+        )}
         <StatCard
           label="Pracownicy"
           value={employeeCount}
           icon={Users}
-          hint="Tylko osoby o statusie „Aktywny”. Konta oczekujące na akceptację i nieaktywne nie są liczone."
+          hint="Wszystkie konta o statusie „Aktywny”, także administratorzy i menedżerowie. Konta oczekujące na akceptację i nieaktywne nie są liczone."
         />
         <StatCard
           label="Przydziały (ten miesiąc)"
           value={assignmentCount}
           icon={ClipboardList}
-          hint={`Liczba przydziałów obejmujących ${formatMonthLabel(currentMonth)} — czyli takich, których okres zaczyna się nie później i kończy nie wcześniej niż ten miesiąc. Jedna osoba na dwóch projektach daje dwa przydziały.`}
+          hint={`Liczba przydziałów aktywnych osób, które obejmują choć jeden dzień miesiąca ${formatMonthLabel(currentMonth)}. Jedna osoba na dwóch projektach daje dwa przydziały.`}
         />
         <StatCard
           label="Przeciążeni (ten miesiąc)"
           value={overloadedCount}
           icon={AlertTriangle}
           tone="warn"
-          hint={`Liczba osób, u których suma FTE ze wszystkich przydziałów w ${formatMonthLabel(currentMonth)} przekracza 1.00, czyli pełny etat. Liczymy osoby, nie przydziały.`}
+          hint={`Liczba osób, które w co najmniej jednym dniu roboczym miesiąca ${formatMonthLabel(currentMonth)} mają przydziały o łącznym FTE powyżej 1,00. To ta sama reguła, która oznacza przydział jako konfliktowy. Liczymy osoby, nie przydziały.`}
+          href={canSeeResources ? "/app/zasoby?status=over" : undefined}
         />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
+        {canSeeProjects && (
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -238,6 +265,7 @@ export default async function AppDashboardPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         <Card>
           <CardHeader>
